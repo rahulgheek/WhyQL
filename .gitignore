@@ -1,0 +1,109 @@
+# ============================================================
+#  WhyQL – Root .gitignore
+#  Covers: Java / Spring Boot backend + Next.js frontend
+# ============================================================
+
+# ──────────────────────────────────────────────────────────────
+#  OS / Editor junk
+# ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.log
+
+# ──────────────────────────────────────────────────────────────
+#  IDE – IntelliJ IDEA
+# ──────────────────────────────────────────────────────────────
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# ──────────────────────────────────────────────────────────────
+#  IDE – Eclipse / STS
+# ──────────────────────────────────────────────────────────────
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings/
+.springBeans
+.sts4-cache
+
+# ──────────────────────────────────────────────────────────────
+#  IDE – VS Code
+# ──────────────────────────────────────────────────────────────
+.vscode/
+
+# ──────────────────────────────────────────────────────────────
+#  IDE – NetBeans
+# ──────────────────────────────────────────────────────────────
+**/nbproject/private/
+**/nbbuild/
+**/dist/
+**/nbdist/
+**/.nb-gradle/
+
+# ──────────────────────────────────────────────────────────────
+#  Java / Maven – Backend
+# ──────────────────────────────────────────────────────────────
+backend/target/
+!**/src/main/**/target/
+!**/src/test/**/target/
+backend/.mvn/wrapper/maven-wrapper.jar
+backend/HELP.md
+
+# ──────────────────────────────────────────────────────────────
+#  Java / Gradle (general)
+# ──────────────────────────────────────────────────────────────
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# ──────────────────────────────────────────────────────────────
+#  Secrets / Environment
+# ──────────────────────────────────────────────────────────────
+.env*
+*.env
+*.pem
+
+# ──────────────────────────────────────────────────────────────
+#  Next.js / Node – Frontend
+# ──────────────────────────────────────────────────────────────
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/coverage/
+frontend/.vercel/
+
+# Yarn / pnpm
+frontend/.pnp
+frontend/.pnp.*
+frontend/.yarn/*
+!frontend/.yarn/patches
+!frontend/.yarn/plugins
+!frontend/.yarn/releases
+!frontend/.yarn/versions
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# TypeScript build info
+*.tsbuildinfo
+frontend/next-env.d.ts
+
+# ──────────────────────────────────────────────────────────────
+#  Stray / auto-generated artifacts (safe to ignore)
+# ──────────────────────────────────────────────────────────────
+
+# Compiled class files accidentally extracted to root
+org/
+
+# GitHub Copilot Java Modernization hooks (session logs)
+.github/modernize/
+
+# Auto-generated agent files
+frontend/AGENTS.md

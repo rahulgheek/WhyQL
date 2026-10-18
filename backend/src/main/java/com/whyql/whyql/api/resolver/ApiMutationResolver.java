@@ -1,0 +1,97 @@
+package com.whyql.whyql.api.resolver;
+
+import org.springframework.graphql.data.method.annotation.Argument;
+import org.springframework.graphql.data.method.annotation.MutationMapping;
+import org.springframework.security.core.Authentication;
+import org.springframework.stereotype.Controller;
+
+import com.whyql.whyql.api.dashboard.DashboardCardMapper;
+import com.whyql.whyql.api.model.AddDataSourceInput;
+import com.whyql.whyql.api.model.AddDataSourcePayload;
+import com.whyql.whyql.api.model.AskQuestionInput;
+import com.whyql.whyql.api.model.AskQuestionPayload;
+import com.whyql.whyql.api.model.DashboardCard;
+import com.whyql.whyql.dashboard.service.DashboardService;
+import com.whyql.whyql.datasource.service.DataSourceService;
+import com.whyql.whyql.pipeline.service.AsyncQueryOrchestrator;
+
+/**
+ * Mutation resolvers. Note that {@code askQuestion} never blocks on the LLM:
+ * it queues a job (Kafka pipeline) and returns the jobId immediately with
+ * QUEUED status.
+ */
+@Controller
+public class ApiMutationResolver {
+
+  private final DataSourceService dataSourceService;
+  private final AsyncQueryOrchestrator orchestrator;
+  private final com.whyql.whyql.jobs.service.JobService jobService;
+  private final DashboardService dashboardService;
+  private final DashboardCardMapper dashboardCardMapper;
+
+  public ApiMutationResolver(DataSourceService dataSourceService,
+      AsyncQueryOrchestrator orchestrator,
+      com.whyql.whyql.jobs.service.JobService jobService,
+      DashboardService dashboardService,
+      DashboardCardMapper dashboardCardMapper) {
+    this.dataSourceService = dataSourceService;
+    this.orchestrator = orchestrator;
+    this.jobService = jobService;
+    this.dashboardService = dashboardService;
+    this.dashboardCardMapper = dashboardCardMapper;
+  }
+
+  @MutationMapping
+  public AddDataSourcePayload addDataSource(@Argument AddDataSourceInput input,
+      Authentication auth) {
+    AuthGuards.requireUser(auth);
+    var result = dataSourceService.addByUrl(
+        auth.getName(),
+        input.name(),
+        input.engine(),
+        input.jdbcUrl(),
+        input.username(),
+        input.password());
+    return AddDataSourcePayload.from(result);
+  }
+
+  @MutationMapping
+  public AskQuestionPayload askQuestion(@Argument AskQuestionInput input,
+      Authentication auth) {
+    AuthGuards.requireUser(auth);
+    com.whyql.whyql.jobs.domain.Job job = orchestrator.startQuestion(
+        input.dataSourceId(), auth.getName(), input.question());
+    return new AskQuestionPayload(job.getId(), job.getStatus().name());
+  }
+
+  /**
+   * Saves a completed job to the caller's dashboard as a pinned card. Saving
+   * the same job twice returns the existing card (idempotent pin). Requires
+   * the job to be the caller's, COMPLETED, and backed by an owned data
+   * source; violations map onto the typed GraphQL errors.
+   */
+  @MutationMapping
+  public DashboardCard saveToDashboard(@Argument java.util.UUID jobId, Authentication auth) {
+    com.whyql.whyql.jobs.domain.Job job = AuthGuards.requireOwnJob(jobService, jobId, auth);
+    try {
+      var view = dataSourceService.get(job.getDataSourceId(), auth.getName());
+      com.whyql.whyql.dashboard.domain.DashboardCard card =
+          dashboardService.saveFromJob(job, view.engine().name());
+      return dashboardCardMapper.toGql(card);
+    } catch (IllegalArgumentException notFound) {
+      // Covers a data source deleted between ask and save.
+      throw new NotFoundGraphQLException(notFound.getMessage());
+    } catch (IllegalStateException notCompleted) {
+      throw new ForbiddenGraphQLException(notCompleted.getMessage());
+    }
+  }
+
+  @MutationMapping
+  public boolean removeDashboardCard(@Argument java.util.UUID id, Authentication auth) {
+    AuthGuards.requireUser(auth);
+    if (!dashboardService.remove(id, auth.getName())) {
+      throw new NotFoundGraphQLException("Dashboard card not found: " + id);
+    }
+    return true;
+  }
+}

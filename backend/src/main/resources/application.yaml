@@ -1,0 +1,107 @@
+spring:
+  application:
+    name: whyql
+  docker:
+    compose:
+      # Dev infra (Postgres+pgvector, Redis, Kafka, MailHog) comes from compose.yaml.
+      enabled: true
+  jpa:
+    hibernate:
+      # Schema is owned by Flyway migrations, never by Hibernate.
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  mail:
+    # MailHog in dev; JavaMailSender is lazy so tests boot without SMTP.
+    host: ${SMTP_HOST:localhost}
+    port: ${SMTP_PORT:1025}
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:change-me}
+            client-secret: ${GOOGLE_CLIENT_SECRET:change-me}
+            # openid scope makes Spring use the OIDC user service (email always present).
+            scope: openid, profile, email
+          github:
+            client-id: ${GITHUB_CLIENT_ID:change-me}
+            client-secret: ${GITHUB_CLIENT_SECRET:change-me}
+            # Read-only scopes: profile + email list (private emails need user:email).
+            scope: read:user, user:email
+
+  graphql:
+    graphiql:
+      enabled: true
+    # Boot 4.1 auto-config: the WS endpoint (graphql-transport-ws, used for
+    # subscriptions) is only registered when an explicit path is set.
+    websocket:
+      path: /graphql
+    # GraphQL-endpoint CORS: feeds BOTH the HTTP CORS mapping and — critically —
+    # the websocket handshake's OriginHandshakeInterceptor. Without it the WS
+    # upgrade rejects any browser Origin (same-origin fallback) as 403 while
+    # header-less probes (Node tests) still pass.
+    cors:
+      allowed-origins: ${whyql.cors.allowed-origins:http://localhost:3000}
+  kafka:
+    # Stage pipeline transport (compose.yaml runs Kafka in dev).
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    consumer:
+      group-id: whyql
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+  ai:
+    model:
+      chat: openai
+      # Groq exposes no embeddings endpoint (verified); local ONNX embeddings land in Phase 8.
+      embedding: none
+    vectorstore:
+      # Store autoconfiguration is off: the vector store is wired manually in
+      # RagConfig (PgVectorStore + local lexical embeddings, initializeSchema).
+      type: none
+    retry:
+      # Free-tier friendly: few attempts, small backoff. 429 handling is verified in Phase 4.
+      max-attempts: 3
+      backoff:
+        initial-interval: 2s
+        multiplier: 2.0
+        max-interval: 30s
+      on-client-errors: false
+    openai:
+      api-key: ${GROQ_API_KEY:change-me}
+      # Groq OpenAI-compatible endpoint (the /v1 suffix is required).
+      base-url: https://api.groq.com/openai/v1
+      chat:
+        # Large Groq model with tool calling + structured output (llama-3.x instant/versatile are shut down since 08/2026).
+        model: openai/gpt-oss-120b
+        temperature: 0
+
+whyql:
+  datasource:
+    # SSRF guard: true blocks internal/metadata hosts for user-supplied JDBC URLs.
+    # Local dev against localhost DBs: set WHYQL_CLOUD_MODE=false or add hosts to the allowlist.
+    cloud-mode: ${WHYQL_CLOUD_MODE:true}
+    allowlist: ${WHYQL_ALLOWLIST:}
+  auth:
+    oauth:
+      # Exact URLs the browser may be redirected back to after a provider login
+      # (token pair travels in the URL fragment). Comma-separated to add more.
+      return-to-allowlist: ${WHYQL_OAUTH_RETURN_TO:http://localhost:3000/auth/callback}
+  github:
+    # Overridable for tests (local stub); production defaults are GitHub's hosts.
+    api-url: ${GITHUB_API_URL:https://api.github.com}
+    download-url: ${GITHUB_DOWNLOAD_URL:https://codeload.github.com}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+  metrics:
+    tags:
+      application: whyql

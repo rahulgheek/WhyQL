@@ -1,0 +1,172 @@
+package com.whyql.whyql.query.validation;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import org.junit.jupiter.api.Test;
+
+import com.whyql.whyql.datasource.SchemaSnapshot;
+import com.whyql.whyql.datasource.SchemaSnapshot.SchemaColumn;
+import com.whyql.whyql.datasource.SchemaSnapshot.SchemaTable;
+import com.whyql.whyql.datasource.VisibilityRules;
+
+/**
+ * Unit tests for the SQL validator. Covers happy paths and adversarial inputs:
+ * write statements, hidden columns, dangerous functions, missing LIMIT,
+ * cross joins, unknown tables/columns.
+ */
+class SqlValidatorTest {
+
+  private final SqlValidator validator = new SqlValidator();
+
+  private SchemaSnapshot snapshot(String... tableNames) {
+    List<SchemaTable> tables = new ArrayList<>();
+    for (String name : tableNames) {
+      List<SchemaColumn> cols = new ArrayList<>();
+      cols.add(new SchemaColumn("id", "BIGINT", false, false));
+      cols.add(new SchemaColumn("name", "TEXT", true, false));
+      if (name.equals("orders")) {
+        cols.add(new SchemaColumn("customer_id", "BIGINT", true, false));
+        cols.add(new SchemaColumn("total", "NUMERIC", true, false));
+        cols.add(new SchemaColumn("ssn", "TEXT", true, true)); // hidden column
+      }
+      tables.add(new SchemaTable(name, cols, List.of("id"), List.of()));
+    }
+    return new SchemaSnapshot("test", tables, java.time.Instant.now());
+  }
+
+  private SqlValidator.ValidationResult validate(String sql, SchemaSnapshot snapshot) {
+    return validator.validate(sql, snapshot, VisibilityRules.none());
+  }
+
+  @Test
+  void simpleSelectWithLimitIsValid() {
+    SchemaSnapshot snap = snapshot("customers", "orders");
+    SqlValidator.ValidationResult result = validate(
+        "SELECT id, name FROM customers LIMIT 10", snap);
+    assertThat(result.valid()).isTrue();
+    assertThat(result.errors()).isEmpty();
+  }
+
+  @Test
+  void selectWithoutLimitIsRejected() {
+    SchemaSnapshot snap = snapshot("customers");
+    SqlValidator.ValidationResult result = validate("SELECT id FROM customers", snap);
+    assertThat(result.valid()).isFalse();
+    assertThat(result.errors()).anyMatch(e -> e.contains("LIMIT"));
+  }
+
+  @Test
+  void insertIsRejected() {
+    SchemaSnapshot snap = snapshot("customers");
+    SqlValidator.ValidationResult result = validate(
+        "INSERT INTO customers (id, name) VALUES (1, 'x')", snap);
+    assertThat(result.valid()).isFalse();
+    assertThat(result.errors()).anyMatch(e -> e.contains("Only SELECT"));
+  }
+
+  @Test
+  void updateIsRejected() {
+    SchemaSnapshot snap = snapshot("customers");
+    SqlValidator.ValidationResult result = validate(
+        "UPDATE customers SET name = 'y' WHERE id = 1", snap);
+    assertThat(result.valid()).isFalse();
+    assertThat(result.errors()).anyMatch(e -> e.contains("Only SELECT"));
+  }
+
+  @Test
+  void deleteIsRejected() {
+    SchemaSnapshot snap = snapshot("customers");
+    SqlValidator.ValidationResult result = validate("DELETE FROM customers WHERE id = 1", snap);
+    assertThat(result.valid()).isFalse();
+    assertThat(result.errors()).anyMatch(e -> e.contains("Only SELECT"));
+  }
+
+  @Test
+  void dropTableIsRejected() {
+    SchemaSnapshot snap = snapshot("customers");
+    SqlValidator.ValidationResult result = validate("DROP TABLE customers", snap);
+    assertThat(result.valid()).isFalse();
+    assertThat(result.errors()).anyMatch(e -> e.contains("Only SELECT"));
+  }
+
+  @Test
+  void hiddenColumnIsRejected() {
+    SchemaSnapshot snap = snapshot("orders");
+    SqlValidator.ValidationResult result = validate(
+        "SELECT id, ssn FROM orders LIMIT 10", snap);
+    assertThat(result.valid()).isFalse();
+    assertThat(result.errors()).anyMatch(e -> e.contains("Hidden column"));
+  }
+
+  @Test
+  void unknownTableIsRejected() {
+    SchemaSnapshot snap = snapshot("customers");
+    SqlValidator.ValidationResult result = validate(
+        "SELECT id FROM nonexistent_table LIMIT 10", snap);
+    assertThat(result.valid()).isFalse();
+    assertThat(result.errors()).anyMatch(e -> e.contains("Table not in schema"));
+  }
+
+  @Test
+  void unknownColumnIsRejected() {
+    SchemaSnapshot snap = snapshot("customers");
+    SqlValidator.ValidationResult result = validate(
+        "SELECT id, nonexistent_col FROM customers LIMIT 10", snap);
+    assertThat(result.valid()).isFalse();
+    assertThat(result.errors()).anyMatch(e -> e.contains("Column not in schema"));
+  }
+
+  @Test
+  void dangerousFunctionPgSleepIsRejected() {
+    SchemaSnapshot snap = snapshot("customers");
+    SqlValidator.ValidationResult result = validate(
+        "SELECT id, pg_sleep(1) FROM customers LIMIT 10", snap);
+    assertThat(result.valid()).isFalse();
+    assertThat(result.errors()).anyMatch(e -> e.contains("Dangerous function"));
+  }
+
+  @Test
+  void dangerousFunctionCopyIsRejected() {
+    SchemaSnapshot snap = snapshot("customers");
+    SqlValidator.ValidationResult result = validate(
+        "COPY customers TO '/tmp/out.csv'", snap);
+    // COPY is not a SELECT - JSqlParser may reject it at parse time
+    assertThat(result.valid()).isFalse();
+  }
+
+  @Test
+  void crossJoinWithoutConditionIsRejected() {
+    SchemaSnapshot snap = snapshot("customers", "orders");
+    SqlValidator.ValidationResult result = validate(
+        "SELECT c.id, o.id FROM customers c CROSS JOIN orders o LIMIT 10", snap);
+    // JSqlParser 5.3 may handle CROSS JOIN differently; just verify it's not accepted as valid
+    assertThat(result.valid()).isFalse();
+  }
+
+  @Test
+  void emptySqlIsRejected() {
+    SchemaSnapshot snap = snapshot("customers");
+    SqlValidator.ValidationResult result = validate("", snap);
+    assertThat(result.valid()).isFalse();
+  }
+
+  @Test
+  void nullSqlIsRejected() {
+    SchemaSnapshot snap = snapshot("customers");
+    SqlValidator.ValidationResult result = validate(null, snap);
+    assertThat(result.valid()).isFalse();
+  }
+
+  @Test
+  void validSelectWithJoinAndWhere() {
+    SchemaSnapshot snap = snapshot("customers", "orders");
+    SqlValidator.ValidationResult result = validate(
+        "SELECT c.id, o.total FROM customers c JOIN orders o ON c.id = o.customer_id " +
+        "WHERE o.total > 100 LIMIT 50", snap);
+    assertThat(result.valid()).isTrue();
+    assertThat(result.errors()).isEmpty();
+  }
+}

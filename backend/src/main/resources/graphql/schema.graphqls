@@ -1,0 +1,106 @@
+# Canonical GraphQL contract for WhyQL.
+# Mirrors frontend/lib/graphql.ts (dataSources / addDataSource / askQuestion / job)
+# plus the jobUpdates subscription. Resolvers live in the api module.
+# "Json" carries heterogeneous SQL result cells (numbers, strings, nulls,
+# timestamps) without committing to a scalar type for every column.
+
+scalar Json
+
+enum Engine {
+  POSTGRES
+  MYSQL
+}
+
+enum JobStatus {
+  QUEUED
+  GENERATING
+  VALIDATING
+  EXECUTING
+  ANALYZING
+  COMPLETED
+  NEEDS_CLARIFICATION
+  FAILED
+}
+
+type DataSource {
+  id: ID!
+  name: String!
+  engine: Engine!
+  sandbox: Boolean!
+  createdAt: String!
+}
+
+input AddDataSourceInput {
+  name: String!
+  engine: Engine!
+  jdbcUrl: String!
+  username: String
+  password: String
+}
+
+type AddDataSourcePayload {
+  dataSource: DataSource!
+  warnings: [String!]!
+}
+
+input AskQuestionInput {
+  dataSourceId: ID!
+  question: String!
+}
+
+type AskQuestionPayload {
+  jobId: ID!
+  status: JobStatus!
+}
+
+type ResultColumn {
+  name: String!
+  typeName: String!
+}
+
+type QueryResult {
+  columns: [ResultColumn!]!
+  rows: [Json!]
+  truncated: Boolean!
+}
+
+type Job {
+  id: ID!
+  status: JobStatus!
+  progress: Int!
+  ownerUserId: String!
+  dataSourceId: ID!
+  question: String!
+  errorMessage: String
+  result: QueryResult
+  createdAt: String
+  updatedAt: String
+}
+
+type DashboardCard {
+  id: ID!
+  jobId: ID!
+  dataSourceId: ID
+  question: String!
+  engine: String
+  result: QueryResult
+  createdAt: String
+}
+
+type Query {
+  health: String!
+  dataSources: [DataSource!]!
+  job(id: ID!): Job!
+  dashboard: [DashboardCard!]!
+}
+
+type Mutation {
+  addDataSource(input: AddDataSourceInput!): AddDataSourcePayload!
+  askQuestion(input: AskQuestionInput!): AskQuestionPayload!
+  saveToDashboard(jobId: ID!): DashboardCard!
+  removeDashboardCard(id: ID!): Boolean!
+}
+
+type Subscription {
+  jobUpdates(jobId: ID!): Job!
+}

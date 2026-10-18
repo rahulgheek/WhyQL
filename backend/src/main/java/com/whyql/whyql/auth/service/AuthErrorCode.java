@@ -1,0 +1,26 @@
+package com.whyql.whyql.auth.service;
+
+/**
+ * Stable error codes for the auth module. The REST layer maps these to HTTP
+ * statuses; Phase 6 maps them to GraphQL error extensions.
+ */
+public enum AuthErrorCode {
+  USER_ALREADY_EXISTS,
+  USER_NOT_FOUND,
+  USER_ALREADY_VERIFIED,
+  INVALID_EMAIL,
+  INVALID_PASSWORD,
+  INVALID_OTP,
+  OTP_EXPIRED,
+  OTP_ATTEMPTS_EXCEEDED,
+  RESEND_LIMIT_EXCEEDED,
+  INVALID_CREDENTIALS,
+  ACCOUNT_NOT_VERIFIED,
+  INVALID_REFRESH_TOKEN,
+  INVALID_ACCESS_TOKEN,
+  EMAIL_SEND_FAILED,
+  OAUTH_PROVIDER_UNSUPPORTED,
+  OAUTH_FAILED,
+  OAUTH_EMAIL_MISSING,
+  OAUTH_RETURN_INVALID
+}
