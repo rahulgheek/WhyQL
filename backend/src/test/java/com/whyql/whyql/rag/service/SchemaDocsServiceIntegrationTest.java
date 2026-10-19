@@ -16,7 +16,7 @@ import org.springframework.jdbc.datasource.SimpleDriverDataSource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
-import com.whyql.whyql.datasource.SchemaSnapshot;
+import com.whyql.whyql.datasource.domain.SchemaSnapshot;
 import com.whyql.whyql.rag.embedding.LexicalEmbeddingModel;
 
 /**

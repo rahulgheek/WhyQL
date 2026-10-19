@@ -43,6 +43,9 @@ export default function SiteHeader() {
           <Link href="/dashboard" className="text-sm text-slate-600 hover:text-slate-900">
             Dashboards
           </Link>
+          <Link href="/builder" className="text-sm text-slate-600 hover:text-slate-900">
+            Boards
+          </Link>
         </div>
       </div>
       {checked ? (

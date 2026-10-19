@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { storeTokens } from "@/lib/tokenRefresh";
 
 /**
  * Target of the backend's OAuth 303 redirect: the token pair rides in the URL
@@ -14,6 +15,11 @@ export default function OAuthCallbackPage() {
   const [step, setStep] = useState<Step>("loading");
   const [message, setMessage] = useState("");
 
+  function setDescription(detail: string | null) {
+    setStep("error");
+    setMessage(detail ? `OAuth login failed: ${detail}` : "OAuth login returned no tokens");
+  }
+
   useEffect(() => {
     const fragment = window.location.hash.replace(/^#/, "");
     const params = new URLSearchParams(fragment);
@@ -21,20 +27,24 @@ export default function OAuthCallbackPage() {
     const refreshToken = params.get("refreshToken");
 
     if (!accessToken || !refreshToken) {
-      setDescription(params.get("errorDescription") ?? params.get("error"));
+      // Async dispatch: the fragment is only present client-side, and the
+      // compiler warns on synchronous setState inside effects.
+      const detail = params.get("errorDescription") ?? params.get("error");
+      queueMicrotask(() => setDescription(detail));
       return;
     }
 
-    localStorage.setItem("access_token", accessToken);
-    localStorage.setItem("refresh_token", refreshToken);
+    const expiresInSeconds = Number(params.get("expiresInSeconds"));
+    storeTokens({
+      accessToken,
+      refreshToken,
+      expiresInSeconds: Number.isFinite(expiresInSeconds) && expiresInSeconds > 0
+        ? expiresInSeconds
+        : 15 * 60,
+    });
     // Scrub the tokens out of the address bar and continue.
     window.location.replace("/");
   }, []);
-
-  function setDescription(detail: string | null) {
-    setStep("error");
-    setMessage(detail ? `OAuth login failed: ${detail}` : "OAuth login returned no tokens");
-  }
 
   if (step === "error") {
     return (

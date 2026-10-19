@@ -14,7 +14,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
-import com.whyql.whyql.datasource.Engine;
+import com.whyql.whyql.datasource.domain.Engine;
 
 /**
  * A connected database. Credentials are AES-GCM ciphertext (see CredentialCrypto);

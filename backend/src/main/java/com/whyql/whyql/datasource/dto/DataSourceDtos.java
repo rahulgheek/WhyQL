@@ -7,7 +7,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 
-import com.whyql.whyql.datasource.Engine;
+import com.whyql.whyql.datasource.domain.Engine;
 
 /**
  * Datasource REST shapes. Secrets only ever travel client → server on creation;

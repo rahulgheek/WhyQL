@@ -31,12 +31,12 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-import com.whyql.whyql.datasource.DatasourceGateway;
+import com.whyql.whyql.datasource.service.DatasourceGateway;
 import com.whyql.whyql.datasource.DatasourceTestcontainersConfiguration;
-import com.whyql.whyql.datasource.SchemaSnapshot;
-import com.whyql.whyql.datasource.VisibilityRules;
-import com.whyql.whyql.datasource.DataSourceErrorCode;
-import com.whyql.whyql.datasource.DataSourceException;
+import com.whyql.whyql.datasource.domain.SchemaSnapshot;
+import com.whyql.whyql.datasource.domain.VisibilityRules;
+import com.whyql.whyql.datasource.service.DataSourceErrorCode;
+import com.whyql.whyql.datasource.service.DataSourceException;
 import com.whyql.whyql.schema.dto.SchemaDtos;
 import com.whyql.whyql.schema.repository.SchemaSnapshotRepository;
 import com.whyql.whyql.schema.service.SchemaService;

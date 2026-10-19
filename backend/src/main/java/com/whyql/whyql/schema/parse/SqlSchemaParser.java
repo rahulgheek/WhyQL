@@ -14,8 +14,8 @@ import net.sf.jsqlparser.statement.create.table.CreateTable;
 import net.sf.jsqlparser.statement.create.table.ForeignKeyIndex;
 import net.sf.jsqlparser.statement.create.table.Index;
 
-import com.whyql.whyql.datasource.DataSourceErrorCode;
-import com.whyql.whyql.datasource.DataSourceException;
+import com.whyql.whyql.datasource.service.DataSourceErrorCode;
+import com.whyql.whyql.datasource.service.DataSourceException;
 
 /**
  * Parses DDL (.sql files, Flyway migrations) into a ParsedSchema using JSqlParser.

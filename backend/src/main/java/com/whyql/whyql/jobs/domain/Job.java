@@ -44,6 +44,12 @@ public class Job {
 
   private String resultJson;
 
+  /** Narrative explanation for why-questions; null for plain data answers. */
+  private String analysis;
+
+  /** Router decision: DATA_QUERY / QUERY_AND_EXPLAIN / GENERAL. */
+  private String route;
+
   private Instant createdAt = Instant.now();
 
   private Instant updatedAt = Instant.now();

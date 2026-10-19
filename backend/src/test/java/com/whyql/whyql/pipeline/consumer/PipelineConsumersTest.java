@@ -15,10 +15,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-import com.whyql.whyql.datasource.Engine;
-import com.whyql.whyql.datasource.QueryPlan;
-import com.whyql.whyql.datasource.SchemaSnapshot;
-import com.whyql.whyql.datasource.TabularResult;
+import com.whyql.whyql.datasource.domain.Engine;
+import com.whyql.whyql.datasource.domain.QueryPlan;
+import com.whyql.whyql.datasource.domain.SchemaSnapshot;
+import com.whyql.whyql.datasource.domain.TabularResult;
 import com.whyql.whyql.jobs.domain.Job;
 import com.whyql.whyql.jobs.domain.JobStatus;
 import com.whyql.whyql.jobs.event.JobEvent;
@@ -65,7 +65,7 @@ class PipelineConsumersTest {
     return objectMapper.writeValueAsString(new JobEvent(
         job.getId(), job.getOwnerUserId(), job.getDataSourceId(),
         job.getQuestion(), job.getStatus(), job.getErrorMessage(),
-        job.getQueryPlanJson(), job.getResultJson(), Instant.now()));
+        job.getQueryPlanJson(), job.getResultJson(), null, null, Instant.now()));
   }
 
   private SchemaSnapshot snapshot() {
@@ -79,7 +79,7 @@ class PipelineConsumersTest {
         List.of(), List.of());
 
     when(queryService.retrieveSchema(any(UUID.class), anyString())).thenReturn(snapshot());
-    when(queryService.generateQuery(any(UUID.class), any(SchemaSnapshot.class), anyString()))
+    when(queryService.generateQuery(any(UUID.class), anyString(), any(SchemaSnapshot.class), anyString()))
         .thenReturn(plan);
 
     new QueryRequestedConsumer(jobService, queryService, jobEventPublisher,
@@ -96,7 +96,7 @@ class PipelineConsumersTest {
         Engine.POSTGRES, "", "", List.of(), List.of("Which date range?"));
 
     when(queryService.retrieveSchema(any(UUID.class), anyString())).thenReturn(snapshot());
-    when(queryService.generateQuery(any(UUID.class), any(SchemaSnapshot.class), anyString()))
+    when(queryService.generateQuery(any(UUID.class), anyString(), any(SchemaSnapshot.class), anyString()))
         .thenReturn(plan);
 
     new QueryRequestedConsumer(jobService, queryService, jobEventPublisher,
@@ -186,7 +186,7 @@ class PipelineConsumersTest {
     job.setResultJson("[]");
 
     JobEventPublisher publisher = mock(JobEventPublisher.class);
-    new AnalysisRequestedConsumer(jobService, publisher, schemaDocs, objectMapper)
+    new AnalysisRequestedConsumer(jobService, publisher, schemaDocs, queryService, objectMapper)
         .onAnalysisRequested(payload());
 
     org.junit.jupiter.api.Assertions.assertEquals(
@@ -203,7 +203,7 @@ class PipelineConsumersTest {
         objectMapper).onQueryGenerated("not json");
     new QueryExecutedConsumer(jobService, jobEventPublisher, objectMapper)
         .onQueryExecuted("not json");
-    new AnalysisRequestedConsumer(jobService, jobEventPublisher, schemaDocs, objectMapper)
+    new AnalysisRequestedConsumer(jobService, jobEventPublisher, schemaDocs, queryService, objectMapper)
         .onAnalysisRequested("not json");
 
     verify(jobService, never()).findById(any(UUID.class));
@@ -217,7 +217,7 @@ class PipelineConsumersTest {
         Engine.POSTGRES, "SELECT count(*) FROM customers", "", List.of(), List.of());
     job.setQueryPlanJson(objectMapper.writeValueAsString(plan));
 
-    new AnalysisRequestedConsumer(jobService, jobEventPublisher, schemaDocs, objectMapper)
+    new AnalysisRequestedConsumer(jobService, jobEventPublisher, schemaDocs, queryService, objectMapper)
         .onAnalysisRequested(payload());
 
     verify(schemaDocs).memorize(job.getDataSourceId(), job.getQuestion(), plan.queryText());
@@ -229,7 +229,7 @@ class PipelineConsumersTest {
     job.setResultJson("[]");
     // No queryPlanJson set → nothing memorized, job still completes.
 
-    new AnalysisRequestedConsumer(jobService, jobEventPublisher, schemaDocs, objectMapper)
+    new AnalysisRequestedConsumer(jobService, jobEventPublisher, schemaDocs, queryService, objectMapper)
         .onAnalysisRequested(payload());
 
     org.junit.jupiter.api.Assertions.assertEquals(

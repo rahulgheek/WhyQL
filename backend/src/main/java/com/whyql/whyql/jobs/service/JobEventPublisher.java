@@ -68,6 +68,8 @@ public class JobEventPublisher {
         errorMessage != null ? errorMessage : job.getErrorMessage(),
         queryPlanJson != null ? queryPlanJson : job.getQueryPlanJson(),
         job.getResultJson(),
+        job.getAnalysis(),
+        job.getRoute(),
         Instant.now());
   }
 
@@ -114,6 +116,15 @@ public class JobEventPublisher {
    */
   public void notifyCompleted(Job job) {
     publishLocal(event(job, JobStatus.COMPLETED, null, null));
+  }
+
+  /**
+   * In-process only: notifies local listeners that the job failed. Without
+   * this the GraphQL subscription never learns of the failure and the client
+   * waits forever — every failure path must call this after markFailed.
+   */
+  public void notifyFailed(Job job) {
+    publishLocal(event(job, JobStatus.FAILED, null, null));
   }
 
   /** Parses a JSON payload into a {@link JobEvent}. Exposed for consumers of the Jobs module. */

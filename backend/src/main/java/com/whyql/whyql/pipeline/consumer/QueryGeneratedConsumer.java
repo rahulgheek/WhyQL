@@ -7,9 +7,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
-import com.whyql.whyql.datasource.QueryPlan;
-import com.whyql.whyql.datasource.SchemaSnapshot;
-import com.whyql.whyql.datasource.TabularResult;
+import com.whyql.whyql.datasource.domain.QueryPlan;
+import com.whyql.whyql.datasource.domain.SchemaSnapshot;
+import com.whyql.whyql.datasource.domain.TabularResult;
 import com.whyql.whyql.jobs.domain.Job;
 import com.whyql.whyql.jobs.event.JobEvent;
 import com.whyql.whyql.jobs.event.JobTopics;
@@ -85,6 +85,7 @@ public class QueryGeneratedConsumer {
       log.error("Validation/execution failed for job {}", jobId, e);
       job.markFailed("validation/execution failed: " + e.getMessage());
       jobService.save(job);
+      jobEventPublisher.notifyFailed(job);
     }
   }
 }

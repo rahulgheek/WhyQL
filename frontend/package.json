@@ -17,8 +17,7 @@
     "lucide-react": "^1.58.0",
     "next": "16.4.2",
     "react": "19.3.0",
-    "react-dom": "19.3.0",
-    "react-echarts": "^0.1.1"
+    "react-dom": "19.3.0"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",

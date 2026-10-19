@@ -73,11 +73,14 @@ public class AuthService {
   public record TokenPair(String accessToken, String refreshToken, int expiresInSeconds) {}
 
   /**
-   * Create a PENDING account and send a 6-digit OTP. An existing email (verified or
-   * not) yields USER_ALREADY_EXISTS; the caller should use resendOtp instead.
+   * Create a PENDING account and send a 6-digit OTP. A verified email yields
+   * USER_ALREADY_EXISTS. An existing but still-PENDING email is not an error:
+   * the registration is treated as a resend (rate-limited like resendOtp) and
+   * the submitted password replaces the pending one, so the user can simply
+   * continue through verification instead of hitting a dead end.
    */
   @Transactional
-  public UserDto register(String email, String password) {
+  public UserDto register(String email, String password, String ip) {
     String normalized = normalizeEmail(email);
     if (normalized == null || !EMAIL_PATTERN.matcher(normalized).matches()) {
       throw new AuthException(AuthErrorCode.INVALID_EMAIL, "invalid email address");
@@ -86,9 +89,19 @@ public class AuthService {
       throw new AuthException(AuthErrorCode.INVALID_PASSWORD,
           "password must be at least " + PASSWORD_MIN_LENGTH + " characters");
     }
-    if (userRepository.existsByEmail(normalized)) {
-      throw new AuthException(AuthErrorCode.USER_ALREADY_EXISTS,
-          "an account already exists for " + normalized);
+
+    Optional<User> existing = userRepository.findByEmail(normalized);
+    if (existing.isPresent()) {
+      User user = existing.get();
+      if (user.getStatus() == UserStatus.VERIFIED) {
+        throw new AuthException(AuthErrorCode.USER_ALREADY_EXISTS,
+            "an account already exists for " + normalized);
+      }
+      // Pending registration: adopt the newly submitted password and re-send the OTP.
+      user.setPasswordHash(passwordEncoder.encode(password));
+      userRepository.save(user);
+      issueNewOtp(user, ip);
+      return new UserDto(user.getId(), user.getEmail(), user.getStatus());
     }
 
     User user = new User();
@@ -168,17 +181,26 @@ public class AuthService {
           "account for " + normalized + " is already verified");
     }
 
-    if (!rateLimiter.canResend(normalized, ip)) {
+    issueNewOtp(user, ip);
+  }
+
+  /**
+   * Generate, store and email a fresh OTP for a pending user, enforcing the
+   * resend rate limit (3/hour per email and per IP). Shared by resendOtp and
+   * the re-registration-of-a-pending-account path.
+   */
+  private void issueNewOtp(User user, String ip) {
+    if (!rateLimiter.canResend(user.getEmail(), ip)) {
       throw new AuthException(AuthErrorCode.RESEND_LIMIT_EXCEEDED,
           "too many resends; try again later");
     }
 
     String code = otpCode();
     try {
-      otpStore.storeOtpHash(normalized, passwordEncoder.encode(code));
-      rateLimiter.resetAttempts(normalized);
-      rateLimiter.recordResend(normalized, ip);
-      emailService.sendOtp(normalized, code);
+      otpStore.storeOtpHash(user.getEmail(), passwordEncoder.encode(code));
+      rateLimiter.resetAttempts(user.getEmail());
+      rateLimiter.recordResend(user.getEmail(), ip);
+      emailService.sendOtp(user.getEmail(), code);
     } catch (AuthEmailException e) {
       throw new AuthException(AuthErrorCode.EMAIL_SEND_FAILED,
           "could not send verification email", e);

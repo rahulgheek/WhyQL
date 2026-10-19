@@ -41,7 +41,7 @@ class JobUpdateHubTest {
 
   private JobEvent event(JobStatus status) {
     return new JobEvent(job.getId(), job.getOwnerUserId(), job.getDataSourceId(),
-        job.getQuestion(), status, null, null, null, java.time.Instant.now());
+        job.getQuestion(), status, null, null, null, null, null, java.time.Instant.now());
   }
 
   @Test
@@ -94,7 +94,7 @@ class JobUpdateHubTest {
     // And events for other jobs do not leak into this subscription.
     var other = UUID.randomUUID();
     hub.onJobEvent(new JobEvent(other, "x", UUID.randomUUID(), "q",
-        JobStatus.FAILED, "boom", null, null, java.time.Instant.now()));
+        JobStatus.FAILED, "boom", null, null, null, null, java.time.Instant.now()));
 
     subscription.dispose();
   }

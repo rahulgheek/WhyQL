@@ -16,9 +16,18 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
-import com.whyql.whyql.datasource.DataSourceAdapter.AdapterException;
-import com.whyql.whyql.datasource.DataSourceAdapter.ConnectionParams;
+import com.whyql.whyql.datasource.adapter.DataSourceAdapter.AdapterException;
+import com.whyql.whyql.datasource.adapter.DataSourceAdapter.ConnectionParams;
 import com.whyql.whyql.datasource.adapter.JdbcAdapter;
+import com.whyql.whyql.datasource.adapter.profile.EngineProfiles;
+import com.whyql.whyql.datasource.adapter.profile.MySqlProfile;
+import com.whyql.whyql.datasource.adapter.profile.PostgresProfile;
+import com.whyql.whyql.datasource.domain.Engine;
+import com.whyql.whyql.datasource.domain.ExecutionLimits;
+import com.whyql.whyql.datasource.domain.QueryPlan;
+import com.whyql.whyql.datasource.domain.SchemaSnapshot;
+import com.whyql.whyql.datasource.domain.TabularResult;
+import com.whyql.whyql.datasource.domain.VisibilityRules;
 
 /**
  * JdbcAdapter against real Postgres and MySQL (Testcontainers, no Spring):
@@ -36,7 +45,8 @@ class JdbcAdapterTest {
   static MySQLContainer<?> mysql =
       new MySQLContainer<>(DockerImageName.parse("mysql:8.0")).withDatabaseName("whyql_test");
 
-  private final JdbcAdapter adapter = new JdbcAdapter();
+  private final JdbcAdapter adapter = new JdbcAdapter(new EngineProfiles(
+      List.of(new PostgresProfile(), new MySqlProfile())));
 
   private static void createShopSchema(String jdbcUrl, String user, String password)
       throws Exception {
@@ -119,6 +129,31 @@ class JdbcAdapterTest {
         VisibilityRules.none());
     assertThat(capped.rows()).hasSize(2);
     assertThat(capped.truncated()).isTrue();
+  }
+
+  @Test
+  void extensionTypeCellsComeBackAsPlainStrings() throws Exception {
+    // citext (and jsonb) surface through getObject as PGobject wrappers;
+    // without normalization they serialize as {"type":…,"value":…} and
+    // clients render "[object Object]".
+    Properties props = new Properties();
+    props.setProperty("user", postgres.getUsername());
+    props.setProperty("password", postgres.getPassword());
+    try (Connection connection = DriverManager.getConnection(postgres.getJdbcUrl(), props);
+        Statement statement = connection.createStatement()) {
+      statement.execute("DROP TABLE IF EXISTS citext_probe");
+      statement.execute("CREATE EXTENSION IF NOT EXISTS citext");
+      statement.execute("CREATE TABLE citext_probe (id BIGINT PRIMARY KEY, email CITEXT)");
+      statement.execute("INSERT INTO citext_probe VALUES (1, 'Kate@Example.com')");
+    }
+
+    QueryPlan plan = new QueryPlan(Engine.POSTGRES,
+        "SELECT id, email FROM citext_probe ORDER BY id", null, List.of(), List.of());
+    TabularResult result = adapter.execute(plan, pgParams(), ExecutionLimits.defaults(),
+        VisibilityRules.none());
+
+    assertThat(result.rows()).hasSize(1);
+    assertThat(result.rows().get(0).get(1)).isEqualTo("Kate@Example.com");
   }
 
   @Test

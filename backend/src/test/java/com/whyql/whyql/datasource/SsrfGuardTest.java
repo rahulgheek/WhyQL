@@ -8,8 +8,8 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import com.whyql.whyql.datasource.config.DataSourceProperties;
-import com.whyql.whyql.datasource.DataSourceErrorCode;
-import com.whyql.whyql.datasource.DataSourceException;
+import com.whyql.whyql.datasource.service.DataSourceErrorCode;
+import com.whyql.whyql.datasource.service.DataSourceException;
 import com.whyql.whyql.datasource.service.SsrfGuard;
 
 /**

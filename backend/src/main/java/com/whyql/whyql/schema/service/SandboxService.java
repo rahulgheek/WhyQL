@@ -10,8 +10,8 @@ import javax.sql.DataSource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.whyql.whyql.datasource.DataSourceErrorCode;
-import com.whyql.whyql.datasource.DataSourceException;
+import com.whyql.whyql.datasource.service.DataSourceErrorCode;
+import com.whyql.whyql.datasource.service.DataSourceException;
 import com.whyql.whyql.schema.parse.SqlSchemaParser;
 
 /**

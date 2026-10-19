@@ -12,12 +12,10 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/* The app is designed light-only: every page and card uses explicit light
+   Tailwind classes, so honoring the OS dark scheme would leave inherited
+   near-white text on white cards. Dark mode would need a full component
+   pass — for now the theme stays pinned to light. */
 
 body {
   background: var(--background);

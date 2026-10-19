@@ -5,8 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 
-import com.whyql.whyql.datasource.SchemaSnapshot;
-import com.whyql.whyql.datasource.DataSourceException;
+import com.whyql.whyql.datasource.domain.SchemaSnapshot;
+import com.whyql.whyql.datasource.service.DataSourceException;
 import com.whyql.whyql.schema.parse.ParsedSchema;
 import com.whyql.whyql.schema.parse.SqlSchemaParser;
 

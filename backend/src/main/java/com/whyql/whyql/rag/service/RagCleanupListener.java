@@ -4,7 +4,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
-import com.whyql.whyql.datasource.DataSourceDeleted;
+import com.whyql.whyql.datasource.event.DataSourceDeleted;
 
 /**
  * Drops the data source's complete vector space (schema docs AND exemplar

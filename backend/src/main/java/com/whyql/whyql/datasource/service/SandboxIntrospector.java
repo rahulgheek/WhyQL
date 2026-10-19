@@ -9,7 +9,7 @@ import java.util.List;
 
 import javax.sql.DataSource;
 
-import com.whyql.whyql.datasource.SchemaSnapshot;
+import com.whyql.whyql.datasource.domain.SchemaSnapshot;
 
 /**
  * Introspection of an isolated sandbox schema inside the app database, used for
@@ -53,7 +53,8 @@ public final class SandboxIntrospector {
         }
       }
       tables.sort((a, b) -> a.name().compareToIgnoreCase(b.name()));
-      return new SchemaSnapshot(null, tables, Instant.now());
+      return new SchemaSnapshot(null, tables, Instant.now(),
+          sandboxSchema == null ? null : List.of(sandboxSchema));
     }
   }
 }

@@ -15,9 +15,9 @@ public class QueryCache {
 
   private final ConcurrentHashMap<String, CacheEntry> cache = new ConcurrentHashMap<>();
 
-  public record CacheEntry(com.whyql.whyql.datasource.QueryPlan plan, long expiryMs) {}
+  public record CacheEntry(com.whyql.whyql.datasource.domain.QueryPlan plan, long expiryMs) {}
 
-  public com.whyql.whyql.datasource.QueryPlan get(String key) {
+  public com.whyql.whyql.datasource.domain.QueryPlan get(String key) {
     CacheEntry entry = cache.get(key);
     if (entry == null) {
       return null;
@@ -29,7 +29,7 @@ public class QueryCache {
     return entry.plan();
   }
 
-  public void put(String key, com.whyql.whyql.datasource.QueryPlan plan, long ttlMinutes) {
+  public void put(String key, com.whyql.whyql.datasource.domain.QueryPlan plan, long ttlMinutes) {
     cache.put(key, new CacheEntry(plan,
         System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(ttlMinutes)));
   }

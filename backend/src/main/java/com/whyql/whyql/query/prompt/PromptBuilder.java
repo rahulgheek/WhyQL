@@ -8,7 +8,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
 
-import com.whyql.whyql.datasource.SchemaSnapshot;
+import com.whyql.whyql.datasource.domain.SchemaSnapshot;
 
 /**
  * Builds the system prompt and user prompt for the question-to-query LLM call.
@@ -30,6 +30,8 @@ public class PromptBuilder {
    * @param snapshot        the data source schema (tables, columns, types, FKs)
    * @param glossary        business glossary terms (may be empty)
    * @param dialect         SQL dialect, e.g. "PostgreSQL" or "MySQL"
+   * @param dialectHints    engine-specific SQL rules (identifier naming,
+   *                        boolean literals, string functions, …)
    * @param question        the user's natural-language question
    * @param relevantContext RAG-retrieved schema doc lines for the question
    *                        (may be empty)
@@ -37,13 +39,15 @@ public class PromptBuilder {
    *                        answered questions (may be empty)
    */
   public PromptPair build(SchemaSnapshot snapshot, List<String> glossary, String dialect,
-      String question, List<String> relevantContext, List<String> exemplarLines) {
-    String systemPrompt = buildSystemPrompt(dialect, glossary);
+      List<String> dialectHints, String question, List<String> relevantContext,
+      List<String> exemplarLines) {
+    String systemPrompt = buildSystemPrompt(dialect, dialectHints, glossary);
     String userPrompt = buildUserPrompt(snapshot, question, relevantContext, exemplarLines);
     return new PromptPair(systemPrompt, userPrompt);
   }
 
-  private String buildSystemPrompt(String dialect, List<String> glossary) {
+  private String buildSystemPrompt(String dialect, List<String> dialectHints,
+      List<String> glossary) {
     StringBuilder sb = new StringBuilder();
     sb.append("You are an expert SQL analyst for WhyQL, a read-only analytics platform.\n");
     sb.append("\n");
@@ -66,7 +70,18 @@ public class PromptBuilder {
     sb.append("clarifyingQuestions to a non-empty list and leave queryText empty.\n");
     sb.append("9. The current date is ").append(DATE_FORMATTER.format(Instant.now())).append(". ");
     sb.append("Use it for any 'today', 'this month', 'last year' references.\n");
+    sb.append("10. If the question asks WHY or HOW (an explanation, e.g. 'why are these ");
+    sb.append("people not in user profile'), SQL cannot explain — it supplies EVIDENCE: ");
+    sb.append("select the rows and columns that make the situation visible (missing joins, ");
+    sb.append("nulls, mismatches, dates), so the analysis stage can explain the pattern.\n");
     sb.append("\n");
+    if (dialectHints != null && !dialectHints.isEmpty()) {
+      sb.append("DIALECT REMINDERS for ").append(dialect).append(" (these are binding):\n");
+      for (String hint : dialectHints) {
+        sb.append("- ").append(hint).append("\n");
+      }
+      sb.append("\n");
+    }
     if (glossary != null && !glossary.isEmpty()) {
       sb.append("BUSINESS GLOSSARY:\n");
       for (String term : glossary) {

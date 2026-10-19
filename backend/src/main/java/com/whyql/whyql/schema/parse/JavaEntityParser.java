@@ -16,8 +16,8 @@ import com.github.javaparser.ast.expr.MemberValuePair;
 import com.github.javaparser.ast.expr.NormalAnnotationExpr;
 import com.github.javaparser.ast.expr.SingleMemberAnnotationExpr;
 
-import com.whyql.whyql.datasource.DataSourceErrorCode;
-import com.whyql.whyql.datasource.DataSourceException;
+import com.whyql.whyql.datasource.service.DataSourceErrorCode;
+import com.whyql.whyql.datasource.service.DataSourceException;
 
 /**
  * Parses JPA {@code @Entity} and Spring-Data {@code @Document} classes into tables

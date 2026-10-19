@@ -7,11 +7,11 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.whyql.whyql.datasource.DataSourceView;
-import com.whyql.whyql.datasource.DatasourceGateway;
-import com.whyql.whyql.datasource.SchemaSnapshot;
-import com.whyql.whyql.datasource.DataSourceErrorCode;
-import com.whyql.whyql.datasource.DataSourceException;
+import com.whyql.whyql.datasource.domain.DataSourceView;
+import com.whyql.whyql.datasource.service.DatasourceGateway;
+import com.whyql.whyql.datasource.domain.SchemaSnapshot;
+import com.whyql.whyql.datasource.service.DataSourceErrorCode;
+import com.whyql.whyql.datasource.service.DataSourceException;
 import com.whyql.whyql.integration.GitHubRepoFetcher;
 import com.whyql.whyql.schema.domain.SchemaSnapshotRecord;
 import com.whyql.whyql.schema.parse.ParsedSchema;

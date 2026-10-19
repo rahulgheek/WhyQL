@@ -4,7 +4,7 @@ import org.springframework.stereotype.Component;
 
 import com.whyql.whyql.api.model.DashboardCard;
 import com.whyql.whyql.api.model.QueryResult;
-import com.whyql.whyql.datasource.TabularResult;
+import com.whyql.whyql.datasource.domain.TabularResult;
 
 import tools.jackson.databind.ObjectMapper;
 

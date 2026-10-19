@@ -1,4 +1,25 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+import {
+  clearTokens,
+  getAccessToken,
+  refreshTokens,
+  storeTokens,
+} from "@/lib/tokenRefresh";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8081";
+
+/** Auth API failure with the backend's stable error code (e.g. ACCOUNT_NOT_VERIFIED). */
+export class AuthApiError extends Error {
+  code?: string;
+  constructor(message: string, code?: string) {
+    super(message);
+    this.code = code;
+  }
+}
+
+function throwApiError(data: unknown, fallback: string): never {
+  const container = data as { message?: string; code?: string } | null;
+  throw new AuthApiError(container?.message || fallback, container?.code);
+}
 
 export async function authRegister(email: string, password: string) {
   const res = await fetch(`${API_BASE}/api/auth/register`, {
@@ -7,7 +28,7 @@ export async function authRegister(email: string, password: string) {
     body: JSON.stringify({ email, password }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.message || "register failed");
+  if (!res.ok) throwApiError(data, "register failed");
   return data;
 }
 
@@ -18,7 +39,7 @@ export async function authVerifyOtp(email: string, code: string) {
     body: JSON.stringify({ email, code }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.message || "verify failed");
+  if (!res.ok) throwApiError(data, "verify failed");
   return data;
 }
 
@@ -29,7 +50,7 @@ export async function authResendOtp(email: string) {
     body: JSON.stringify({ email }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.message || "resend failed");
+  if (!res.ok) throwApiError(data, "resend failed");
   return data;
 }
 
@@ -40,42 +61,17 @@ export async function authLogin(email: string, password: string) {
     body: JSON.stringify({ email, password }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.message || "login failed");
-  // store tokens
-  if (typeof window !== "undefined") {
-    localStorage.setItem("access_token", data.accessToken);
-    localStorage.setItem("refresh_token", data.refreshToken);
+  if (!res.ok) throwApiError(data, "login failed");
+  if (data?.accessToken && data?.refreshToken) {
+    // Persist the pair and arm the silent renewal loop.
+    storeTokens(data);
   }
   return data;
 }
 
-export function getAccessToken() {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("access_token");
-}
+export { getAccessToken, refreshTokens, clearTokens };
 
 export type MeResponse = { id: string; email: string; status: string };
-
-/** Rotate the pair via /api/auth/refresh; returns false when the refresh token is dead. */
-export async function refreshTokens(): Promise<boolean> {
-  if (typeof window === "undefined") return false;
-  const refreshToken = localStorage.getItem("refresh_token");
-  if (!refreshToken) return false;
-  try {
-    const res = await fetch(`${API_BASE}/api/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken }),
-    });
-    if (!res.ok) return false;
-    const data = await res.json();
-    localStorage.setItem("access_token", data.accessToken);
-    localStorage.setItem("refresh_token", data.refreshToken);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 /**
  * The authenticated profile for the header: 401s are retried once after a
@@ -114,7 +110,6 @@ export function startOAuth(provider: "github" | "google") {
 
 export function logout() {
   if (typeof window !== "undefined") {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
+    clearTokens();
   }
 }

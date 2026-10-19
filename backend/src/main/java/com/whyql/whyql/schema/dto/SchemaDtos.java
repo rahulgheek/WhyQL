@@ -5,7 +5,7 @@ import java.util.UUID;
 
 import jakarta.validation.constraints.NotBlank;
 
-import com.whyql.whyql.datasource.SchemaSnapshot;
+import com.whyql.whyql.datasource.domain.SchemaSnapshot;
 
 /**
  * Schema REST shapes. Uploads use multipart file parts (controller level);

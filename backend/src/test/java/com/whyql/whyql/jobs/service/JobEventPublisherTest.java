@@ -103,7 +103,7 @@ class JobEventPublisherTest {
   void parseRoundTripsAnEvent() {
     JobEvent original = new JobEvent(
         UUID.randomUUID(), "user-1", UUID.randomUUID(), "count rows",
-        JobStatus.EXECUTING, null, "{\"plan\":1}", null, Instant.now());
+        JobStatus.EXECUTING, null, "{\"plan\":1}", null, null, null, Instant.now());
 
     String json = new ObjectMapper().writeValueAsString(original);
     JobEvent parsed = publisher.parse(json);

@@ -20,16 +20,17 @@ import org.springframework.ai.chat.prompt.ChatOptions;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 
-import com.whyql.whyql.datasource.DatasourceGateway;
-import com.whyql.whyql.datasource.ExecutionLimits;
-import com.whyql.whyql.datasource.QueryPlan;
-import com.whyql.whyql.datasource.SchemaSnapshot;
-import com.whyql.whyql.datasource.TabularResult;
-import com.whyql.whyql.datasource.VisibilityRules;
+import com.whyql.whyql.datasource.service.DatasourceGateway;
+import com.whyql.whyql.datasource.domain.ExecutionLimits;
+import com.whyql.whyql.datasource.domain.QueryPlan;
+import com.whyql.whyql.datasource.domain.SchemaSnapshot;
+import com.whyql.whyql.datasource.domain.TabularResult;
+import com.whyql.whyql.datasource.domain.VisibilityRules;
 import com.whyql.whyql.query.QueryService;
 import com.whyql.whyql.query.cache.QueryCache;
 import com.whyql.whyql.query.execution.QueryExecutor;
 import com.whyql.whyql.query.prompt.PromptBuilder;
+import com.whyql.whyql.query.service.AnalysisNarrator;
 import com.whyql.whyql.query.tool.QueryTools;
 import com.whyql.whyql.query.validation.SqlValidator;
 import com.whyql.whyql.rag.service.SchemaDocsService;
@@ -64,8 +65,8 @@ class DefaultQueryServicePipelineTest {
     when(schemaDocs.searchExemplars(any(UUID.class), anyString(), anyInt()))
         .thenReturn(List.of());
     when(gateway.get(any(UUID.class), any(String.class)))
-        .thenReturn(new com.whyql.whyql.datasource.DataSourceView(
-            dataSourceId, "test-ds", com.whyql.whyql.datasource.Engine.POSTGRES,
+        .thenReturn(new com.whyql.whyql.datasource.domain.DataSourceView(
+            dataSourceId, "test-ds", com.whyql.whyql.datasource.domain.Engine.POSTGRES,
             false, java.time.Instant.now()));
     when(gateway.introspect(any(UUID.class), any(String.class))).thenReturn(snapshot);
     when(gateway.execute(any(UUID.class), any(String.class), any(),
@@ -97,7 +98,7 @@ class DefaultQueryServicePipelineTest {
         gateway, new PromptBuilder(), new SqlValidator(),
         new QueryExecutor(gateway), new QueryCache(), new QueryTools(),
         schemaDocs,
-        CircuitBreaker.of("llm", CircuitBreakerConfig.ofDefaults()));
+        CircuitBreaker.of("llm", CircuitBreakerConfig.ofDefaults()), new AnalysisNarrator(chatClient), mock(com.whyql.whyql.query.service.QuestionRouter.class));
 
     QueryService.QueryRequest request = new QueryService.QueryRequest(
         dataSourceId,
@@ -139,8 +140,8 @@ class DefaultQueryServicePipelineTest {
     when(schemaDocs.searchExemplars(any(UUID.class), anyString(), anyInt()))
         .thenReturn(List.of());
     when(gateway.get(any(UUID.class), any(String.class)))
-        .thenReturn(new com.whyql.whyql.datasource.DataSourceView(
-            dataSourceId, "test-ds", com.whyql.whyql.datasource.Engine.POSTGRES,
+        .thenReturn(new com.whyql.whyql.datasource.domain.DataSourceView(
+            dataSourceId, "test-ds", com.whyql.whyql.datasource.domain.Engine.POSTGRES,
             false, java.time.Instant.now()));
     when(gateway.introspect(any(UUID.class), any(String.class))).thenReturn(snapshot);
 
@@ -164,7 +165,7 @@ class DefaultQueryServicePipelineTest {
         gateway, new PromptBuilder(), new SqlValidator(),
         new QueryExecutor(gateway), new QueryCache(), new QueryTools(),
         schemaDocs,
-        CircuitBreaker.of("llm", CircuitBreakerConfig.ofDefaults()));
+        CircuitBreaker.of("llm", CircuitBreakerConfig.ofDefaults()), new AnalysisNarrator(chatClient), mock(com.whyql.whyql.query.service.QuestionRouter.class));
 
     QueryService.QueryRequest request = new QueryService.QueryRequest(
         dataSourceId,

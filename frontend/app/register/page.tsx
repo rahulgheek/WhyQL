@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { authRegister } from "@/lib/auth";
 import { OAuthButton } from "@/app/auth/OAuthButton";
+import { VerifyOtpForm } from "@/app/auth/VerifyOtpForm";
 import Link from "next/link";
 
 export default function RegisterPage() {
@@ -25,17 +26,26 @@ export default function RegisterPage() {
   if (sent) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="p-8 border border-slate-200 rounded-xl bg-white">
+        <div className="p-8 border border-slate-200 rounded-xl bg-white w-full max-w-md">
           <h2 className="text-xl font-bold text-slate-900 mb-2">
-            Verification email sent
+            Check your inbox
           </h2>
           <p className="text-sm text-slate-600 mb-6">
-            Check your inbox (MailHog at http://localhost:8025 in dev) for the
-            6-digit code, then verify below.
+            We sent a 6-digit verification code to{" "}
+            <span className="font-medium text-slate-900">{email}</span>. Enter it
+            below to activate your account.
           </p>
-          <Link href="/login" className="text-sm text-blue-600 hover:underline">
-            Back to login
-          </Link>
+          <VerifyOtpForm
+            email={email}
+            onVerified={() => {
+              window.location.href = "/";
+            }}
+          />
+          <p className="mt-6 text-sm text-center text-slate-600">
+            <Link href="/login" className="text-blue-600 hover:underline">
+              Back to login
+            </Link>
+          </p>
         </div>
       </div>
     );
@@ -89,7 +99,10 @@ export default function RegisterPage() {
           or
           <span className="h-px flex-1 bg-slate-200" />
         </div>
-        <OAuthButton provider="github" label="Continue with GitHub" />
+        <div className="space-y-2">
+          <OAuthButton provider="github" label="Continue with GitHub" />
+          <OAuthButton provider="google" label="Continue with Google" />
+        </div>
         <p className="mt-6 text-sm text-center text-slate-600">
           Already have an account?{" "}
           <Link href="/login" className="text-blue-600 hover:underline">

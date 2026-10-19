@@ -7,10 +7,10 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
-import com.whyql.whyql.datasource.SchemaSnapshot;
-import com.whyql.whyql.datasource.SchemaSnapshot.SchemaColumn;
-import com.whyql.whyql.datasource.SchemaSnapshot.SchemaTable;
-import com.whyql.whyql.datasource.VisibilityRules;
+import com.whyql.whyql.datasource.domain.SchemaSnapshot;
+import com.whyql.whyql.datasource.domain.SchemaSnapshot.SchemaColumn;
+import com.whyql.whyql.datasource.domain.SchemaSnapshot.SchemaTable;
+import com.whyql.whyql.datasource.domain.VisibilityRules;
 
 /**
  * Unit tests for the SQL validator. Covers happy paths and adversarial inputs:
@@ -48,6 +48,102 @@ class SqlValidatorTest {
         "SELECT id, name FROM customers LIMIT 10", snap);
     assertThat(result.valid()).isTrue();
     assertThat(result.errors()).isEmpty();
+  }
+
+  @Test
+  void plainCteSelectIsValid() {
+    SchemaSnapshot snap = snapshot("orders");
+    SqlValidator.ValidationResult result = validate(
+        "WITH recent AS (SELECT id, total FROM orders) "
+            + "SELECT id FROM recent LIMIT 5",
+        snap);
+    assertThat(result.valid()).isTrue();
+  }
+
+  @Test
+  void unionWithLimitIsValid() {
+    SchemaSnapshot snap = snapshot("customers", "orders");
+    SqlValidator.ValidationResult result = validate(
+        "SELECT id FROM customers LIMIT 5 UNION SELECT id FROM orders LIMIT 5", snap);
+    assertThat(result.valid()).isTrue();
+    assertThat(result.errors()).isEmpty();
+  }
+
+  @Test
+  void parenthesizedUnionWithTrailingLimitIsValid() {
+    SchemaSnapshot snap = snapshot("customers", "orders");
+    SqlValidator.ValidationResult result = validate(
+        "(SELECT id FROM customers) UNION (SELECT id FROM orders) LIMIT 10", snap);
+    assertThat(result.valid()).isTrue();
+    assertThat(result.errors()).isEmpty();
+  }
+
+  @Test
+  void unionWithoutLimitIsRejected() {
+    SchemaSnapshot snap = snapshot("customers", "orders");
+    SqlValidator.ValidationResult result = validate(
+        "SELECT id FROM customers UNION SELECT id FROM orders", snap);
+    assertThat(result.valid()).isFalse();
+    assertThat(result.errors()).anyMatch(e -> e.contains("LIMIT"));
+  }
+
+  @Test
+  void unionWithUnknownTableInSecondComponentIsRejected() {
+    SchemaSnapshot snap = snapshot("customers", "orders");
+    SqlValidator.ValidationResult result = validate(
+        "SELECT id FROM customers LIMIT 5 UNION SELECT id FROM ghost_table LIMIT 5", snap);
+    assertThat(result.valid()).isFalse();
+    assertThat(result.errors()).anyMatch(e -> e.contains("Table not in schema"));
+  }
+
+  @Test
+  void unionSelectIntoSecondComponentIsRejected() {
+    SchemaSnapshot snap = snapshot("customers", "orders");
+    SqlValidator.ValidationResult result = validate(
+        "SELECT id FROM customers LIMIT 5 UNION SELECT id INTO archive FROM orders LIMIT 5",
+        snap);
+    assertThat(result.valid()).isFalse();
+    assertThat(result.errors()).anyMatch(e -> e.contains("INTO"));
+  }
+
+  @Test
+  void selectIntoIsRejected() {
+    SchemaSnapshot snap = snapshot("orders");
+    // PostgreSQL CTAS: SELECT ... INTO creates a table.
+    SqlValidator.ValidationResult result = validate(
+        "SELECT id, total INTO archive FROM orders LIMIT 10", snap);
+    assertThat(result.valid()).isFalse();
+    assertThat(result.errors()).anyMatch(e -> e.contains("INTO"));
+  }
+
+  @Test
+  void selectIntoOutfileAndForUpdateAreRejected() {
+    SchemaSnapshot snap = snapshot("customers");
+    SqlValidator.ValidationResult result = validate(
+        "SELECT id FROM customers LIMIT 10 FOR UPDATE", snap);
+    assertThat(result.valid()).isFalse();
+
+    result = validate("SELECT name FROM customers LIMIT 10", snap);
+    assertThat(result.valid()).isTrue(); // sanity: same shape without the lock
+  }
+
+  @Test
+  void mysqlIntoVariableSelectIsRejected() {
+    SchemaSnapshot snap = snapshot("orders");
+    SqlValidator.ValidationResult result = validate(
+        "SELECT COUNT(*) FROM orders LIMIT 1 INTO", snap);
+    assertThat(result.valid()).isFalse();
+  }
+
+  @Test
+  void modifyingCteIsRejected() {
+    SchemaSnapshot snap = snapshot("customers", "orders");
+    // PostgreSQL data-modifying CTE: a SELECT that deletes on the side.
+    SqlValidator.ValidationResult result = validate(
+        "WITH removed AS (DELETE FROM customers) SELECT COUNT(*) FROM removed LIMIT 1",
+        snap);
+    assertThat(result.valid()).isFalse();
+    assertThat(result.errors()).anyMatch(e -> e.contains("CTE"));
   }
 
   @Test

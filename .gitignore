@@ -63,6 +63,8 @@ build/
 #  Secrets / Environment
 # ──────────────────────────────────────────────────────────────
 .env*
+!.env.example
+!backend/.env.example
 *.env
 *.pem
 
@@ -107,3 +109,13 @@ org/
 
 # Auto-generated agent files
 frontend/AGENTS.md
+
+# ──────────────────────────────────────────────────────────────
+#  Database Migrations & Local Data Dumps
+# ──────────────────────────────────────────────────────────────
+backend/src/main/resources/db/migration/
+**/db/migration/
+*.sqlite
+*.sqlite3
+*.db
+*.dump

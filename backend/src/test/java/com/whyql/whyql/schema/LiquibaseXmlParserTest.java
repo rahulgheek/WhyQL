@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 
-import com.whyql.whyql.datasource.SchemaSnapshot;
+import com.whyql.whyql.datasource.domain.SchemaSnapshot;
 import com.whyql.whyql.schema.parse.LiquibaseXmlParser;
 import com.whyql.whyql.schema.parse.ParsedSchema;
 

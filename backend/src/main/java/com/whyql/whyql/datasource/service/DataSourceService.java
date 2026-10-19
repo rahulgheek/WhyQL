@@ -8,13 +8,13 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.whyql.whyql.datasource.DataSourceErrorCode;
-import com.whyql.whyql.datasource.DataSourceException;
-import com.whyql.whyql.datasource.DataSourceAdapter;
-import com.whyql.whyql.datasource.DataSourceDeleted;
-import com.whyql.whyql.datasource.DataSourceView;
-import com.whyql.whyql.datasource.Engine;
-import com.whyql.whyql.datasource.SchemaSnapshot;
+import com.whyql.whyql.datasource.service.DataSourceErrorCode;
+import com.whyql.whyql.datasource.service.DataSourceException;
+import com.whyql.whyql.datasource.adapter.DataSourceAdapter;
+import com.whyql.whyql.datasource.event.DataSourceDeleted;
+import com.whyql.whyql.datasource.domain.DataSourceView;
+import com.whyql.whyql.datasource.domain.Engine;
+import com.whyql.whyql.datasource.domain.SchemaSnapshot;
 import com.whyql.whyql.datasource.domain.DataSource;
 import com.whyql.whyql.datasource.repository.DataSourceRepository;
 

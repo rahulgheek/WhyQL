@@ -6,7 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
-import com.whyql.whyql.datasource.DataSourceDeleted;
+import com.whyql.whyql.datasource.event.DataSourceDeleted;
 import com.whyql.whyql.schema.repository.SchemaSnapshotRepository;
 
 /**

@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import com.whyql.whyql.api.model.Job;
 import com.whyql.whyql.api.model.QueryResult;
-import com.whyql.whyql.datasource.TabularResult;
+import com.whyql.whyql.datasource.domain.TabularResult;
 import com.whyql.whyql.jobs.domain.JobStatus;
 
 import tools.jackson.databind.ObjectMapper;
@@ -92,7 +92,7 @@ class JobMapperTest {
     var event = new com.whyql.whyql.jobs.event.JobEvent(
         jobId, "user-9", UUID.randomUUID(), "top products",
         JobStatus.EXECUTING, null, "{\"queryText\":\"SELECT 1\"}",
-        objectJson(), java.time.Instant.now());
+        objectJson(), null, null, java.time.Instant.now());
 
     Job view = mapper.fromEvent(event);
 

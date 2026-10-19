@@ -1,7 +1,11 @@
 package com.whyql.whyql.query.service;
 
+import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -14,13 +18,15 @@ import org.springframework.stereotype.Service;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import tools.jackson.databind.ObjectMapper;
-import com.whyql.whyql.datasource.DataSourceAdapter.AdapterException;
-import com.whyql.whyql.datasource.DatasourceGateway;
-import com.whyql.whyql.datasource.ExecutionLimits;
-import com.whyql.whyql.datasource.QueryPlan;
-import com.whyql.whyql.datasource.SchemaSnapshot;
-import com.whyql.whyql.datasource.TabularResult;
-import com.whyql.whyql.datasource.VisibilityRules;
+import com.whyql.whyql.datasource.adapter.DataSourceAdapter.AdapterException;
+import com.whyql.whyql.datasource.service.DatasourceGateway;
+import com.whyql.whyql.datasource.domain.Engine;
+import com.whyql.whyql.datasource.domain.EngineDialects;
+import com.whyql.whyql.datasource.domain.ExecutionLimits;
+import com.whyql.whyql.datasource.domain.QueryPlan;
+import com.whyql.whyql.datasource.domain.SchemaSnapshot;
+import com.whyql.whyql.datasource.domain.TabularResult;
+import com.whyql.whyql.datasource.domain.VisibilityRules;
 import com.whyql.whyql.query.QueryService;
 import com.whyql.whyql.query.cache.QueryCache;
 import com.whyql.whyql.query.execution.QueryExecutor;
@@ -53,6 +59,8 @@ public class DefaultQueryService implements QueryService {
   private final QueryTools queryTools;
   private final SchemaDocsService schemaDocs;
   private final CircuitBreaker circuitBreaker;
+  private final AnalysisNarrator analysisNarrator;
+  private final QuestionRouter questionRouter;
 
   private static final int RAG_TOP_K = 5;
   private static final int RAG_EXEMPLAR_TOP_K = 3;
@@ -66,7 +74,9 @@ public class DefaultQueryService implements QueryService {
       QueryCache cache,
       QueryTools queryTools,
       SchemaDocsService schemaDocs,
-      CircuitBreaker circuitBreaker) {
+      CircuitBreaker circuitBreaker,
+      AnalysisNarrator analysisNarrator,
+      QuestionRouter questionRouter) {
     this.chatClient = chatClient;
     this.objectMapper = objectMapper;
     this.gateway = gateway;
@@ -77,6 +87,8 @@ public class DefaultQueryService implements QueryService {
     this.queryTools = queryTools;
     this.schemaDocs = schemaDocs;
     this.circuitBreaker = circuitBreaker;
+    this.analysisNarrator = analysisNarrator;
+    this.questionRouter = questionRouter;
   }
 
   @Override
@@ -109,7 +121,7 @@ public class DefaultQueryService implements QueryService {
     // Stage 2: query generation
     QueryPlan plan;
     try {
-      plan = generateQuery(dataSourceId, snapshot, question);
+      plan = generateQuery(dataSourceId, ownerUserId, snapshot, question);
     } catch (Exception e) {
       log.error("Query generation failed for dataSource {}", dataSourceId, e);
       return new QueryResult("FAILED", null, null,
@@ -161,7 +173,12 @@ public class DefaultQueryService implements QueryService {
   }
 
   @Override
-  public QueryPlan generateQuery(UUID dataSourceId, SchemaSnapshot snapshot, String question) {
+  public QueryPlan generateQuery(UUID dataSourceId, String ownerUserId,
+      SchemaSnapshot snapshot, String question) {
+    // The data source record is the single source of truth for its engine:
+    // prompts, plan tags and validation all follow it, per profile.
+    Engine engine = gateway.get(dataSourceId, ownerUserId).engine();
+
     queryTools.setSnapshot(snapshot);
 
     List<String> relevantContext;
@@ -183,7 +200,8 @@ public class DefaultQueryService implements QueryService {
         relevantContext.size(), exemplarLines.size(), dataSourceId);
 
     PromptBuilder.PromptPair prompts = promptBuilder.build(
-        snapshot, List.of(), "PostgreSQL", question, relevantContext, exemplarLines);
+        snapshot, List.of(), EngineDialects.displayName(engine),
+        EngineDialects.hints(engine), question, relevantContext, exemplarLines);
 
     String response;
     try {
@@ -209,7 +227,7 @@ public class DefaultQueryService implements QueryService {
     String explanation = (String) parsed.getOrDefault("explanation", "");
 
     return new QueryPlan(
-        com.whyql.whyql.datasource.Engine.POSTGRES,
+        engine,
         queryText,
         explanation,
         assumptions,
@@ -234,8 +252,132 @@ public class DefaultQueryService implements QueryService {
       return queryExecutor.execute(
           dataSourceId, ownerUserId, plan,
           QueryExecutor.defaultLimits(), VisibilityRules.none());
-    } catch (com.whyql.whyql.datasource.DataSourceException e) {
+    } catch (com.whyql.whyql.datasource.service.DataSourceException e) {
       throw new RuntimeException("Execution failed: " + e.getMessage(), e);
+    }
+  }
+
+  /**
+   * Fast path for schema-meta questions: matched by {@link SchemaMetaQuestions}
+   * and answered from a live introspection of the data source. Any mismatch or
+   * failure falls through to empty, letting the caller use the normal pipeline.
+   */
+  @Override
+  public Optional<TabularResult> answerSchemaQuestion(UUID dataSourceId, String ownerUserId,
+      String question) {
+    Optional<SchemaMetaQuestions.Kind> kind = SchemaMetaQuestions.classify(question);
+    if (kind.isEmpty()) {
+      return Optional.empty();
+    }
+    List<SchemaSnapshot.SchemaTable> tables;
+    List<String> reportsSchemas;
+    try {
+      SchemaSnapshot snapshot = gateway.introspect(dataSourceId, ownerUserId);
+      tables = snapshot.tables();
+      reportsSchemas = snapshot.schemas();
+    } catch (Exception e) {
+      // Let the normal pipeline surface the (likely) connection problem.
+      log.debug("Schema-meta fast path skipped: introspection failed: {}", e.getMessage());
+      return Optional.empty();
+    }
+    List<SchemaSnapshot.SchemaTable> sorted = tables == null ? List.of()
+        : tables.stream()
+            .filter(t -> t.name() != null)
+            .sorted(Comparator.comparing(SchemaSnapshot.SchemaTable::name,
+                String.CASE_INSENSITIVE_ORDER))
+            .toList();
+    List<String> schemas = schemaNames(reportsSchemas, sorted);
+    boolean schemaKnown = kind.get() == SchemaMetaQuestions.Kind.SCHEMA_COUNT
+        || kind.get() == SchemaMetaQuestions.Kind.SCHEMA_LIST;
+    if (schemaKnown && schemas.isEmpty()) {
+      // This data source carries no namespace information (SQL upload): the
+      // normal pipeline answers or clarifies the usual way.
+      return Optional.empty();
+    }
+
+    return Optional.of(switch (kind.get()) {
+      case TABLE_COUNT -> new TabularResult(
+          List.of(new TabularResult.ResultColumn("table_count", "BIGINT")),
+          List.of(List.of(sorted.size())),
+          false);
+      case TABLE_LIST -> new TabularResult(
+          List.of(new TabularResult.ResultColumn("table_name", "VARCHAR"),
+              new TabularResult.ResultColumn("column_count", "BIGINT")),
+          sorted.stream().map(t -> List.<Object>of(
+              t.name(), (Object) (t.columns() == null ? 0 : t.columns().size()))).toList(),
+          false);
+      case SCHEMA_COUNT -> new TabularResult(
+          List.of(new TabularResult.ResultColumn("schema_count", "BIGINT")),
+          List.of(List.of(schemas.size())),
+          false);
+      case SCHEMA_LIST -> new TabularResult(
+          List.of(new TabularResult.ResultColumn("schema_name", "VARCHAR")),
+          schemas.stream().map(s -> List.of((Object) s)).toList(),
+          false);
+    });
+  }
+
+  /**
+   * Schema names for meta answers: JDBC introspection reports the readable
+   * namespaces directly; without that, qualified duplicate table names
+   * ("schema.table") still name them. An empty result means the data source
+   * carries no namespace information at all — the caller cannot answer, so it
+   * returns empty and the normal pipeline takes over.
+   */
+  private static List<String> schemaNames(List<String> reported,
+      List<SchemaSnapshot.SchemaTable> tables) {
+    LinkedHashSet<String> names = new LinkedHashSet<>();
+    if (reported != null) {
+      reported.stream().filter(s -> s != null && !s.isBlank()).forEach(names::add);
+    }
+    if (names.isEmpty() && tables != null) {
+      tables.stream()
+          .map(SchemaSnapshot.SchemaTable::name)
+          .filter(n -> n != null && n.contains("."))
+          .map(n -> n.substring(0, n.indexOf('.'))
+              .toLowerCase(Locale.ROOT))
+          .forEach(names::add);
+    }
+    return List.copyOf(names);
+  }
+
+  @Override
+  public boolean wantsExplanation(String question) {
+    return WhyQuestions.classify(question);
+  }
+
+  @Override
+  public String routeQuestion(String question) {
+    return questionRouter.route(question);
+  }
+
+  @Override
+  public String answerGeneral(String question) {
+    try {
+      return chatClient.prompt()
+          .system("""
+              You are WhyQL's assistant. The user asked a question that is not \
+              answerable from their database. Answer it directly and concisely \
+              (at most 120 words, plain prose). You have no access to data — never \
+              pretend to query anything. If the question looks like it really wants \
+              the user's own data (counts, rows in their tables), say so and give a \
+              one-sentence example of how to ask it as a data question.""")
+          .user(question)
+          .call()
+          .content();
+    } catch (Exception e) {
+      log.warn("General answer failed: {}", e.getMessage());
+      return null;
+    }
+  }
+
+  @Override
+  public String analyzeExplanation(String question, TabularResult result) {
+    try {
+      return analysisNarrator.narrate(question, result);
+    } catch (Exception e) {
+      log.warn("Narrative analysis failed, keeping the plain result: {}", e.getMessage());
+      return null;
     }
   }
 
@@ -274,7 +416,7 @@ public class DefaultQueryService implements QueryService {
           dataSourceId, ownerUserId, plan,
           QueryExecutor.defaultLimits(), VisibilityRules.none());
       return new QueryResult("COMPLETED", plan, result, null, List.of());
-    } catch (com.whyql.whyql.datasource.DataSourceException e) {
+    } catch (com.whyql.whyql.datasource.service.DataSourceException e) {
       return new QueryResult("FAILED", plan, null,
           "execution failed: " + e.getMessage(), List.of());
     }

@@ -6,14 +6,14 @@ import org.springframework.stereotype.Component;
 
 import java.util.UUID;
 
-import com.whyql.whyql.datasource.DataSourceAdapter;
-import com.whyql.whyql.datasource.DataSourceAdapter.ConnectionParams;
-import com.whyql.whyql.datasource.DataSourceAdapter.AdapterException;
-import com.whyql.whyql.datasource.DatasourceGateway;
-import com.whyql.whyql.datasource.ExecutionLimits;
-import com.whyql.whyql.datasource.QueryPlan;
-import com.whyql.whyql.datasource.TabularResult;
-import com.whyql.whyql.datasource.VisibilityRules;
+import com.whyql.whyql.datasource.adapter.DataSourceAdapter;
+import com.whyql.whyql.datasource.adapter.DataSourceAdapter.ConnectionParams;
+import com.whyql.whyql.datasource.adapter.DataSourceAdapter.AdapterException;
+import com.whyql.whyql.datasource.service.DatasourceGateway;
+import com.whyql.whyql.datasource.domain.ExecutionLimits;
+import com.whyql.whyql.datasource.domain.QueryPlan;
+import com.whyql.whyql.datasource.domain.TabularResult;
+import com.whyql.whyql.datasource.domain.VisibilityRules;
 
 /**
  * Executes a validated QueryPlan through the DatasourceGateway (which routes to

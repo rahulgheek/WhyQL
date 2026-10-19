@@ -8,8 +8,9 @@
     displayName = "Api",
     allowedDependencies = {
         "jobs::domain", "jobs::events", "jobs::services",
-        "pipeline::services", "datasource", "datasource::services", "shared",
-        "dashboard::services", "dashboard::domain"
+        "pipeline::services", "datasource::domain", "datasource::services", "shared",
+        "dashboard::services", "dashboard::domain",
+        "board::domain", "board::services", "query"
     })
 package com.whyql.whyql.api;
 

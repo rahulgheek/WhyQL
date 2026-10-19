@@ -126,6 +126,15 @@
 			<optional>true</optional>
 		</dependency>
 		<dependency>
+			<groupId>me.paulschwarz</groupId>
+			<artifactId>springboot4-dotenv</artifactId>
+			<version>5.1.0</version>
+			<optional>true</optional>
+			<!-- Exposes backend/.env as a Spring PropertySource so ${MAIL_*}, GROQ_API_KEY,
+			     GITHUB_* etc. resolve without IDE run-config env vars. Real environment
+			     variables keep precedence over .env values; Boot 4 auto-integration. -->
+		</dependency>
+		<dependency>
 			<groupId>io.micrometer</groupId>
 			<artifactId>micrometer-registry-prometheus</artifactId>
 			<scope>runtime</scope>

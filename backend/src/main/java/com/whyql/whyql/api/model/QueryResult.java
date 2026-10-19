@@ -10,7 +10,7 @@ public record QueryResult(
 
   public record ResultColumn(String name, String typeName) {}
 
-  public static QueryResult from(com.whyql.whyql.datasource.TabularResult result) {
+  public static QueryResult from(com.whyql.whyql.datasource.domain.TabularResult result) {
     return new QueryResult(
         result.columns().stream()
             .map(c -> new ResultColumn(c.name(), c.typeName()))

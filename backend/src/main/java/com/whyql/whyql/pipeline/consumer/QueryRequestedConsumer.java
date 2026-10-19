@@ -1,5 +1,6 @@
 package com.whyql.whyql.pipeline.consumer;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -7,13 +8,15 @@ import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
-import com.whyql.whyql.datasource.QueryPlan;
-import com.whyql.whyql.datasource.SchemaSnapshot;
+import com.whyql.whyql.datasource.domain.QueryPlan;
+import com.whyql.whyql.datasource.domain.SchemaSnapshot;
+import com.whyql.whyql.datasource.domain.TabularResult;
 import com.whyql.whyql.jobs.domain.Job;
 import com.whyql.whyql.jobs.event.JobEvent;
 import com.whyql.whyql.jobs.event.JobTopics;
 import com.whyql.whyql.jobs.service.JobEventPublisher;
 import com.whyql.whyql.jobs.service.JobService;
+import com.whyql.whyql.query.QueryService;
 import com.whyql.whyql.query.QueryService;
 
 import tools.jackson.databind.ObjectMapper;
@@ -60,10 +63,45 @@ public class QueryRequestedConsumer {
     jobService.save(job);
 
     try {
+      // Fast path: questions about the schema itself ("how many tables are
+      // there") answer instantly from the snapshot — no LLM, no SQL, never
+      // clarifies. A datasource that fails introspection falls through to the
+      // normal pipeline so its error is reported the usual way.
+      Optional<TabularResult> metaAnswer = queryService.answerSchemaQuestion(
+          event.dataSourceId(), event.ownerUserId(), event.question());
+      if (metaAnswer.isPresent()) {
+        job.markCompleted(objectMapper.writeValueAsString(metaAnswer.get()));
+        jobService.save(job);
+        jobEventPublisher.notifyCompleted(job);
+        log.info("Job {} answered from the schema snapshot (no LLM needed)", jobId);
+        return;
+      }
+
+      // LLM router: the question decides its own path — SQL answer, SQL
+      // evidence + reasoning, or general knowledge (no database at all).
+      // A null/blank route means the router was unavailable: DATA_QUERY is
+      // the safe degradation, identical to the pre-router pipeline.
+      String route = queryService.routeQuestion(event.question());
+      if (route == null || route.isBlank()) {
+        route = QueryService.ROUTE_DATA_QUERY;
+      }
+      job.setRoute(route);
+      jobService.save(job);
+
+      if (QueryService.ROUTE_GENERAL.equals(route)) {
+        String answer = queryService.answerGeneral(event.question());
+        job.setAnalysis(answer);
+        job.markCompleted(null);
+        jobService.save(job);
+        jobEventPublisher.notifyCompleted(job);
+        log.info("Job {} answered as general knowledge (no database query)", jobId);
+        return;
+      }
+
       SchemaSnapshot snapshot = queryService.retrieveSchema(
           event.dataSourceId(), event.ownerUserId());
       QueryPlan plan = queryService.generateQuery(
-          event.dataSourceId(), snapshot, event.question());
+          event.dataSourceId(), event.ownerUserId(), snapshot, event.question());
       String planJson = objectMapper.writeValueAsString(plan);
       job.setQueryPlanJson(planJson);
       jobService.save(job);
@@ -83,6 +121,7 @@ public class QueryRequestedConsumer {
       log.error("Generation failed for job {}", jobId, e);
       job.markFailed("generation failed: " + e.getMessage());
       jobService.save(job);
+      jobEventPublisher.notifyFailed(job);
     }
   }
 }

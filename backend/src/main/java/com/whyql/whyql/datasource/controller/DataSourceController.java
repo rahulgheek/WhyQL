@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.whyql.whyql.datasource.DataSourceView;
+import com.whyql.whyql.datasource.domain.DataSourceView;
 import com.whyql.whyql.datasource.dto.DataSourceDtos.AddDataSourceRequest;
 import com.whyql.whyql.datasource.dto.DataSourceDtos.DataSourceResponse;
 import com.whyql.whyql.datasource.dto.DataSourceDtos.TestConnectionResponse;

@@ -7,7 +7,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
-import com.whyql.whyql.datasource.SchemaSnapshot;
+import com.whyql.whyql.datasource.domain.SchemaSnapshot;
 
 class PromptBuilderTest {
 
@@ -24,7 +24,7 @@ class PromptBuilderTest {
   @Test
   void relevantContextSectionRenderedWhenPresent() {
     PromptBuilder.PromptPair pair = builder.build(
-        SNAPSHOT, List.of(), "PostgreSQL", "list customers",
+        SNAPSHOT, List.of(), "PostgreSQL", List.of(),  "list customers",
         List.of("Table orders: columns amount DECIMAL"), List.of());
 
     assertThat(pair.userPrompt()).contains("RELEVANT SCHEMA CONTEXT");
@@ -36,7 +36,7 @@ class PromptBuilderTest {
   @Test
   void relevantContextSectionOmittedWhenEmpty() {
     PromptBuilder.PromptPair pair = builder.build(
-        SNAPSHOT, List.of(), "PostgreSQL", "list customers", List.of(), List.of());
+        SNAPSHOT, List.of(), "PostgreSQL", List.of(),  "list customers", List.of(), List.of());
 
     assertThat(pair.userPrompt()).doesNotContain("RELEVANT SCHEMA CONTEXT");
     assertThat(pair.userPrompt()).contains("SCHEMA:");
@@ -45,7 +45,7 @@ class PromptBuilderTest {
   @Test
   void exemplarSectionRenderedWhenPresent() {
     PromptBuilder.PromptPair pair = builder.build(
-        SNAPSHOT, List.of(), "PostgreSQL", "monthly revenue",
+        SNAPSHOT, List.of(), "PostgreSQL", List.of(),  "monthly revenue",
         List.of(),
         List.of("asked: \"monthly revenue\" solution: SELECT sum(amount) FROM orders"));
 
@@ -57,7 +57,7 @@ class PromptBuilderTest {
   @Test
   void exemplarSectionOmittedWhenEmpty() {
     PromptBuilder.PromptPair pair = builder.build(
-        SNAPSHOT, List.of(), "PostgreSQL", "anything", List.of(), List.of());
+        SNAPSHOT, List.of(), "PostgreSQL", List.of(),  "anything", List.of(), List.of());
 
     assertThat(pair.userPrompt()).doesNotContain("SIMILAR PAST QUESTIONS");
   }

@@ -100,7 +100,7 @@ class AuthServiceIntegrationTest {
   void happyPathRegisterVerifyLoginRefreshLogout() {
     ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
 
-    AuthService.UserDto registered = auth.register("Alice@example.com", "Str0ng!Pass");
+    AuthService.UserDto registered = auth.register("Alice@example.com", "Str0ng!Pass", "10.0.0.1");
     assertThat(registered.email()).isEqualTo("alice@example.com");
     assertThat(registered.status()).isEqualTo(UserStatus.PENDING);
     assertThat(users.existsByEmail("alice@example.com")).isTrue();
@@ -134,7 +134,7 @@ class AuthServiceIntegrationTest {
 
   @Test
   void loginRejectsUnverifiedAndWrongPassword() {
-    auth.register("bob@example.com", "Str0ng!Pass");
+    auth.register("bob@example.com", "Str0ng!Pass", "10.0.0.1");
 
     assertThatThrownBy(() -> auth.login("bob@example.com", "Str0ng!Pass"))
         .satisfies(t -> assertCode(t, AuthErrorCode.ACCOUNT_NOT_VERIFIED));
@@ -152,7 +152,7 @@ class AuthServiceIntegrationTest {
   @Test
   void fiveFailedAttemptsLockTheCode() {
     ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
-    auth.register("carol@example.com", "Str0ng!Pass");
+    auth.register("carol@example.com", "Str0ng!Pass", "10.0.0.1");
     String realCode = capturedOtp(captor); // valid code that we intentionally never use
 
     for (int i = 0; i < 5; i++) {
@@ -168,7 +168,7 @@ class AuthServiceIntegrationTest {
   @Test
   void resendLimitPerEmailAndPerIp() {
     ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
-    auth.register("dave@example.com", "Str0ng!Pass");
+    auth.register("dave@example.com", "Str0ng!Pass", "10.0.0.9");
     capturedOtp(captor); // first code comes from register
 
     // Per-email limit: three resends go through, the fourth is blocked.
@@ -185,12 +185,12 @@ class AuthServiceIntegrationTest {
     // Per-IP limit: three different emails resend once from the same IP, the fourth is blocked
     // even though no single email hit its own limit.
     for (int i = 1; i <= 3; i++) {
-      auth.register("ipuser" + i + "@example.com", "Str0ng!Pass");
+      auth.register("ipuser" + i + "@example.com", "Str0ng!Pass", "10.9.9.9");
       capturedOtp(captor);
       auth.resendOtp("ipuser" + i + "@example.com", "10.9.9.9");
       capturedOtp(captor);
     }
-    auth.register("ipuser4@example.com", "Str0ng!Pass");
+    auth.register("ipuser4@example.com", "Str0ng!Pass", "10.9.9.9");
     capturedOtp(captor);
     assertThatThrownBy(() -> auth.resendOtp("ipuser4@example.com", "10.9.9.9"))
         .satisfies(t -> assertCode(t, AuthErrorCode.RESEND_LIMIT_EXCEEDED));
@@ -198,9 +198,35 @@ class AuthServiceIntegrationTest {
 
   @Test
   void duplicateEmailRejected() {
-    auth.register("eve@example.com", "Str0ng!Pass");
-    assertThatThrownBy(() -> auth.register("EVE@example.com", "Other!Pass1"))
+    ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+    auth.register("eve@example.com", "Str0ng!Pass", "10.5.5.5");
+    auth.verifyOtp("eve@example.com", capturedOtp(captor), "10.5.5.5");
+
+    // A VERIFIED account is a hard duplicate: re-registering must fail regardless
+    // of case in the email, and no second email goes out.
+    assertThatThrownBy(() -> auth.register("EVE@example.com", "Other!Pass1", "10.5.5.6"))
         .satisfies(t -> assertCode(t, AuthErrorCode.USER_ALREADY_EXISTS));
+  }
+
+  @Test
+  void reregisteringPendingAccountResendsOtpAndUpdatesPassword() {
+    ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+    auth.register("mallory@example.com", "Str0ng!Pass", "10.6.6.1");
+    String firstOtp = capturedOtp(captor);
+
+    // Same email, still PENDING: re-registration resends a fresh OTP instead of
+    // failing, and the newly submitted password replaces the pending one.
+    AuthService.UserDto again = auth.register("Mallory@Example.com", "Other!Pass1", "10.6.6.2");
+    assertThat(again.status()).isEqualTo(UserStatus.PENDING);
+    String secondOtp = capturedOtp(captor);
+    assertThat(secondOtp).isNotEqualTo(firstOtp);
+
+    // The new code verifies, and login works with the NEW password only.
+    auth.verifyOtp("mallory@example.com", secondOtp, "10.6.6.2");
+    AuthService.TokenPair tokens = auth.login("mallory@example.com", "Other!Pass1");
+    assertThat(tokens.accessToken()).isNotBlank();
+    assertThatThrownBy(() -> auth.login("mallory@example.com", "Str0ng!Pass"))
+        .satisfies(t -> assertCode(t, AuthErrorCode.INVALID_CREDENTIALS));
   }
 
   @Test
@@ -220,7 +246,7 @@ class AuthServiceIntegrationTest {
 
   @Test
   void oauthAutoLinksExistingEmailAndVerifiesPendingAccount() {
-    auth.register("heidi@example.com", "Str0ng!Pass");
+    auth.register("heidi@example.com", "Str0ng!Pass", "10.0.0.1");
     assertThat(users.findByEmail("heidi@example.com").orElseThrow().getStatus())
         .isEqualTo(UserStatus.PENDING);
 

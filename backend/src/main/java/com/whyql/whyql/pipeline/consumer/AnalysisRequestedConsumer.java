@@ -7,11 +7,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
-import com.whyql.whyql.datasource.QueryPlan;
+import com.whyql.whyql.datasource.domain.QueryPlan;
+import com.whyql.whyql.datasource.domain.SchemaSnapshot;
+import com.whyql.whyql.datasource.domain.TabularResult;
 import com.whyql.whyql.jobs.domain.Job;
 import com.whyql.whyql.jobs.event.JobEvent;
 import com.whyql.whyql.jobs.event.JobTopics;
 import com.whyql.whyql.jobs.service.JobService;
+import com.whyql.whyql.query.QueryService;
 import com.whyql.whyql.rag.service.SchemaDocsService;
 
 import tools.jackson.databind.ObjectMapper;
@@ -34,15 +37,18 @@ public class AnalysisRequestedConsumer {
   private final JobService jobService;
   private final com.whyql.whyql.jobs.service.JobEventPublisher jobEventPublisher;
   private final SchemaDocsService schemaDocs;
+  private final QueryService queryService;
   private final ObjectMapper objectMapper;
 
   public AnalysisRequestedConsumer(JobService jobService,
       com.whyql.whyql.jobs.service.JobEventPublisher jobEventPublisher,
       SchemaDocsService schemaDocs,
+      QueryService queryService,
       ObjectMapper objectMapper) {
     this.jobService = jobService;
     this.jobEventPublisher = jobEventPublisher;
     this.schemaDocs = schemaDocs;
+    this.queryService = queryService;
     this.objectMapper = objectMapper;
   }
 
@@ -58,11 +64,51 @@ public class AnalysisRequestedConsumer {
 
     UUID jobId = event.jobId();
     log.info("Stage 4 (complete) for job {}", jobId);
-    Job job = jobService.findById(jobId);
-    job.markCompleted(job.getResultJson());
-    jobService.save(job);
-    jobEventPublisher.notifyCompleted(job);
-    memorizeExemplar(jobId, job);
+    try {
+      Job job = jobService.findById(jobId);
+      // Narrative answers, decided by the router: QUERY_AND_EXPLAIN reasons
+      // over the executed evidence rows. Null route = legacy job from before
+      // the router existed → phrase-matching fallback. A narrator failure
+      // degrades to the plain result table; it must never fail a finished job.
+      if (event.analysis() != null && !event.analysis().isBlank()) {
+        job.setAnalysis(event.analysis());
+      } else if (job.getAnalysis() == null || job.getAnalysis().isBlank()) {
+        String route = event.route() != null ? event.route() : job.getRoute();
+        boolean wantsNarrative =
+            QueryService.ROUTE_QUERY_AND_EXPLAIN.equals(route)
+                || (route == null && queryService.wantsExplanation(job.getQuestion()));
+        if (wantsNarrative) {
+          job.setAnalysis(buildAnalysis(job));
+        }
+      }
+      job.markCompleted(job.getResultJson());
+      jobService.save(job);
+      jobEventPublisher.notifyCompleted(job);
+    } catch (Exception e) {
+      log.error("Completion failed for job {}", jobId, e);
+      try {
+        Job job = jobService.findById(jobId);
+        job.markFailed("completion failed: " + e.getMessage());
+        jobService.save(job);
+        jobEventPublisher.notifyFailed(job);
+      } catch (Exception ignored) {
+        log.error("Could not even mark job {} failed: {}", jobId, e.getMessage());
+      }
+    }
+    memorizeExemplar(jobId, jobService.findById(jobId));
+  }
+
+  /** Narrative for why-questions, absorbed; null keeps the plain table. */
+  private String buildAnalysis(Job job) {
+    try {
+      TabularResult result = job.getResultJson() == null || job.getResultJson().isBlank()
+          ? null
+          : objectMapper.readValue(job.getResultJson(), TabularResult.class);
+      return queryService.analyzeExplanation(job.getQuestion(), result);
+    } catch (Exception e) {
+      log.warn("Analysis skipped for job {}: {}", job.getId(), e.getMessage());
+      return null;
+    }
   }
 
   /**

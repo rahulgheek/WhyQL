@@ -3,12 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useDashboard, useRemoveDashboardCard } from "@/lib/graphql";
-
-interface CardResult {
-  columns: { name: string; typeName: string }[];
-  rows: unknown[];
-  truncated: boolean;
-}
+import ResultView from "@/app/components/ResultView";
 
 interface DashboardReply {
   dashboard: {
@@ -17,7 +12,11 @@ interface DashboardReply {
     question: string;
     engine: string;
     createdAt: string;
-    result: CardResult | null;
+    result: {
+      columns: { name: string; typeName: string }[];
+      rows: unknown[];
+      truncated: boolean;
+    } | null;
   }[];
 }
 
@@ -42,7 +41,6 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <SiteNav />
       <main className="max-w-6xl mx-auto p-6">
         <h1 className="text-xl font-bold text-slate-900 mb-1">Dashboards</h1>
         <p className="text-sm text-slate-600 mb-6">
@@ -104,63 +102,14 @@ export default function DashboardPage() {
                     {removingId === card.id ? "…" : "Remove"}
                   </button>
                 </div>
-                <CardTable result={card.result} />
+                <div className="p-4">
+                  <ResultView result={card.result} defaultView="table" />
+                </div>
               </div>
             ))}
           </div>
         )}
       </main>
-    </div>
-  );
-}
-
-function SiteNav() {
-  return (
-    <nav className="border-b border-slate-200 bg-white px-6 py-4">
-      <Link href="/" className="font-bold text-xl text-slate-900">
-        WhyQL
-      </Link>
-    </nav>
-  );
-}
-
-function CardTable({ result }: { result: CardResult | null }) {
-  if (!result || result.columns.length === 0) {
-    return (
-      <div className="p-4 text-sm text-slate-500">No result snapshot.</div>
-    );
-  }
-  const previewRows = result.rows ?? [];
-  return (
-    <div className="p-4 overflow-x-auto">
-      <table className="w-full text-xs">
-        <thead>
-          <tr>
-            {result.columns.map((col) => (
-              <th
-                key={col.name}
-                className="text-left font-medium text-slate-500 pb-2 pr-4 border-b border-slate-200"
-              >
-                {col.name}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {previewRows.map((row, rowIdx) => (
-            <tr key={rowIdx} className="border-b border-slate-50 last:border-0">
-              {result.columns.map((col, colIdx) => (
-                <td key={col.name} className="py-1.5 pr-4 text-slate-700">
-                  {String((row as unknown[])[colIdx] ?? "")}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {result.truncated && (
-        <p className="text-xs text-slate-400 mt-2">Preview truncated.</p>
-      )}
     </div>
   );
 }

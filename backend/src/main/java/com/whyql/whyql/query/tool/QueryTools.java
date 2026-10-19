@@ -7,8 +7,8 @@ import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
-import com.whyql.whyql.datasource.SchemaSnapshot;
-import com.whyql.whyql.datasource.SchemaSnapshot.SchemaTable;
+import com.whyql.whyql.datasource.domain.SchemaSnapshot;
+import com.whyql.whyql.datasource.domain.SchemaSnapshot.SchemaTable;
 
 /**
  * Model tools available to the LLM during query generation. The model may call

@@ -5,16 +5,16 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
-import com.whyql.whyql.datasource.DataSourceAdapter;
-import com.whyql.whyql.datasource.DataSourceErrorCode;
-import com.whyql.whyql.datasource.DataSourceException;
-import com.whyql.whyql.datasource.DataSourceView;
-import com.whyql.whyql.datasource.DatasourceGateway;
-import com.whyql.whyql.datasource.ExecutionLimits;
-import com.whyql.whyql.datasource.QueryPlan;
-import com.whyql.whyql.datasource.SchemaSnapshot;
-import com.whyql.whyql.datasource.TabularResult;
-import com.whyql.whyql.datasource.VisibilityRules;
+import com.whyql.whyql.datasource.adapter.DataSourceAdapter;
+import com.whyql.whyql.datasource.service.DataSourceErrorCode;
+import com.whyql.whyql.datasource.service.DataSourceException;
+import com.whyql.whyql.datasource.domain.DataSourceView;
+import com.whyql.whyql.datasource.service.DatasourceGateway;
+import com.whyql.whyql.datasource.domain.ExecutionLimits;
+import com.whyql.whyql.datasource.domain.QueryPlan;
+import com.whyql.whyql.datasource.domain.SchemaSnapshot;
+import com.whyql.whyql.datasource.domain.TabularResult;
+import com.whyql.whyql.datasource.domain.VisibilityRules;
 
 /**
  * Gateway implementation: resolves owned data sources to connections (decrypting

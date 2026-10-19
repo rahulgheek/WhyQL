@@ -51,4 +51,40 @@ class ApiExceptionResolverTest {
 
     assertThat(resolved).isNull();
   }
+
+  @Test
+  void datasourcePasswordFailureIsClassifiedAndExplained() {
+    GraphQLError error = resolver.resolveException(
+        new com.whyql.whyql.datasource.service.DataSourceException(
+            com.whyql.whyql.datasource.service.DataSourceErrorCode.CONNECTION_FAILED,
+            "connection test failed: connection failed: ERROR: password authentication failed for user 'neon_db'"),
+        null).block().get(0);
+
+    assertThat(error.getErrorType()).isEqualTo(ErrorType.BAD_REQUEST);
+    assertThat(error.getMessage())
+        .contains("username or password was rejected")
+        .doesNotContain("connection test failed");
+  }
+
+  @Test
+  void datasourceBlockedHostIsForbidden() {
+    GraphQLError error = resolver.resolveException(
+        new com.whyql.whyql.datasource.service.DataSourceException(
+            com.whyql.whyql.datasource.service.DataSourceErrorCode.BLOCKED_HOST,
+            "database host resolves to a blocked (internal) address: localhost"),
+        null).block().get(0);
+
+    assertThat(error.getErrorType()).isEqualTo(ErrorType.FORBIDDEN);
+  }
+
+  @Test
+  void datasourceUnknownDatabaseIsExplained() {
+    GraphQLError error = resolver.resolveException(
+        new com.whyql.whyql.datasource.service.DataSourceException(
+            com.whyql.whyql.datasource.service.DataSourceErrorCode.CONNECTION_FAILED,
+            "connection test failed: connection failed: FATAL: database \"nope\" does not exist"),
+        null).block().get(0);
+
+    assertThat(error.getMessage()).contains("does not exist on the server");
+  }
 }

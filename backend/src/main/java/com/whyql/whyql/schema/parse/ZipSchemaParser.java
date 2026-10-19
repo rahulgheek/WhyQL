@@ -11,8 +11,8 @@ import java.util.zip.ZipInputStream;
 
 import org.springframework.stereotype.Component;
 
-import com.whyql.whyql.datasource.DataSourceErrorCode;
-import com.whyql.whyql.datasource.DataSourceException;
+import com.whyql.whyql.datasource.service.DataSourceErrorCode;
+import com.whyql.whyql.datasource.service.DataSourceException;
 
 /**
  * Walks an uploaded zip (or a GitHub tarball-turned-zip) and routes each file to

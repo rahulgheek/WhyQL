@@ -22,6 +22,56 @@ enum JobStatus {
   FAILED
 }
 
+enum WidgetMode {
+  MANUAL
+  SQL
+  QUESTION
+}
+
+enum ChartKind {
+  TABLE
+  BAR
+  LINE
+  PIE
+}
+
+type Board {
+  id: ID!
+  title: String!
+  widgets: [BoardWidget!]!
+  createdAt: String!
+}
+
+type BoardWidget {
+  id: ID!
+  boardId: ID!
+  title: String!
+  dataSourceId: ID!
+  mode: WidgetMode!
+  tableName: String
+  sqlText: String
+  question: String
+  chartKind: ChartKind!
+  ordinal: Int!
+  status: String!
+  errorMessage: String
+  result: QueryResult
+  createdAt: String
+  updatedAt: String
+}
+
+input BoardWidgetInput {
+  id: ID
+  title: String!
+  dataSourceId: ID!
+  mode: WidgetMode!
+  tableName: String
+  sqlText: String
+  question: String
+  chartKind: ChartKind!
+  ordinal: Int!
+}
+
 type DataSource {
   id: ID!
   name: String!
@@ -73,6 +123,8 @@ type Job {
   question: String!
   errorMessage: String
   result: QueryResult
+  analysis: String
+  clarifyingQuestions: [String!]
   createdAt: String
   updatedAt: String
 }
@@ -92,6 +144,9 @@ type Query {
   dataSources: [DataSource!]!
   job(id: ID!): Job!
   dashboard: [DashboardCard!]!
+  boards: [Board!]!
+  board(id: ID!): Board!
+  schemaTables(dataSourceId: ID!): [String!]!
 }
 
 type Mutation {
@@ -99,6 +154,10 @@ type Mutation {
   askQuestion(input: AskQuestionInput!): AskQuestionPayload!
   saveToDashboard(jobId: ID!): DashboardCard!
   removeDashboardCard(id: ID!): Boolean!
+  createBoard(title: String!): Board!
+  removeBoard(id: ID!): Boolean!
+  saveBoardWidget(boardId: ID!, input: BoardWidgetInput!): BoardWidget!
+  removeBoardWidget(boardId: ID!, widgetId: ID!): Boolean!
 }
 
 type Subscription {

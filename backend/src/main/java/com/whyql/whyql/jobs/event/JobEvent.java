@@ -18,6 +18,8 @@ public record JobEvent(
     String errorMessage,
     String queryPlanJson,
     String resultJson,
+    String analysis,
+    String route,
     Instant timestamp
 ) {
 }

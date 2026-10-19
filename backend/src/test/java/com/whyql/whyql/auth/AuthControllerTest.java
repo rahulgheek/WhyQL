@@ -112,12 +112,13 @@ class AuthControllerTest {
         .andExpect(jsonPath("$.email").value("kate@example.com"))
         .andExpect(jsonPath("$.status").value("PENDING"));
 
-    // Duplicate register -> 409 with stable error code.
+    // Pending re-register → treated as a resend: 201 PENDING with a fresh OTP.
     mockMvc.perform(post("/api/auth/register")
             .contentType(MediaType.APPLICATION_JSON)
             .content("{\"email\":\"kate@example.com\",\"password\":\"Str0ng!Pass\"}"))
-        .andExpect(status().isConflict())
-        .andExpect(jsonPath("$.code").value("USER_ALREADY_EXISTS"));
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.email").value("kate@example.com"))
+        .andExpect(jsonPath("$.status").value("PENDING"));
 
     // Login before verification -> 403.
     mockMvc.perform(post("/api/auth/login")
@@ -140,6 +141,13 @@ class AuthControllerTest {
             .content("{\"email\":\"kate@example.com\",\"code\":\"" + code + "\"}"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("VERIFIED"));
+
+    // Registering a now-VERIFIED email → 409 USER_ALREADY_EXISTS.
+    mockMvc.perform(post("/api/auth/register")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"email\":\"kate@example.com\",\"password\":\"Str0ng!Pass\"}"))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("USER_ALREADY_EXISTS"));
 
     // Login -> 200 with token pair.
     MvcResult login = mockMvc.perform(post("/api/auth/login")

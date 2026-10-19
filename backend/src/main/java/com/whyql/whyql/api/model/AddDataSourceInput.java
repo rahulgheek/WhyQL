@@ -1,6 +1,6 @@
 package com.whyql.whyql.api.model;
 
-import com.whyql.whyql.datasource.Engine;
+import com.whyql.whyql.datasource.domain.Engine;
 
 /**
  * GraphQL {@code AddDataSourceInput} — data source Url submit. Username and

@@ -19,8 +19,8 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.whyql.whyql.datasource.DataSourceErrorCode;
-import com.whyql.whyql.datasource.DataSourceException;
+import com.whyql.whyql.datasource.service.DataSourceErrorCode;
+import com.whyql.whyql.datasource.service.DataSourceException;
 import com.whyql.whyql.schema.dto.SchemaDtos;
 import com.whyql.whyql.schema.dto.SchemaDtos.GitHubSyncRequest;
 import com.whyql.whyql.schema.dto.SchemaDtos.ManualSchemaRequest;
