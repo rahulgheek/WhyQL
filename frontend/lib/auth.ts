@@ -113,3 +113,64 @@ export function logout() {
     clearTokens();
   }
 }
+
+// ─── Adopt a local password (OAuth-only accounts) ────────────────────────────
+
+/**
+ * Step 1: email the signed-in OAuth user a 6-digit code so they can adopt a
+ * local password. Requires a Bearer JWT; rate limited server-side (3/hour).
+ */
+export async function adoptPasswordInit(): Promise<void> {
+  let token = getAccessToken();
+  if (!token) throw new AuthApiError("Not signed in", "UNAUTHENTICATED");
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const res = await fetch(`${API_BASE}/api/auth/password/set/init`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) return;
+    if (res.status === 401 && attempt === 0) {
+      if (!(await refreshTokens())) {
+        logout();
+        throw new AuthApiError("Session expired", "UNAUTHENTICATED");
+      }
+      token = getAccessToken();
+      if (!token) throw new AuthApiError("Session expired", "UNAUTHENTICATED");
+      continue;
+    }
+    const data = await res.json().catch(() => null);
+    throwAuthError(data, "could not send the code", res.status);
+  }
+}
+
+/** Step 2: verify the emailed code and store the new local password. */
+export async function adoptPassword(code: string, password: string): Promise<void> {
+  let token = getAccessToken();
+  if (!token) throw new AuthApiError("Not signed in", "UNAUTHENTICATED");
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const res = await fetch(`${API_BASE}/api/auth/password/set`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ code, password }),
+    });
+    if (res.ok) return;
+    if (res.status === 401 && attempt === 0) {
+      if (!(await refreshTokens())) {
+        logout();
+        throw new AuthApiError("Session expired", "UNAUTHENTICATED");
+      }
+      token = getAccessToken();
+      if (!token) throw new AuthApiError("Session expired", "UNAUTHENTICATED");
+      continue;
+    }
+    const data = await res.json().catch(() => null);
+    throwAuthError(data, "could not set the password", res.status);
+  }
+}
+
+function throwAuthError(data: unknown, fallback: string, status: number): never {
+  const container = data as { message?: string; code?: string } | null;
+  const msg = container?.message || fallback;
+  const code = container?.code || (status === 409 ? "PASSWORD_ALREADY_SET" : undefined);
+  throw new AuthApiError(msg, code);
+}

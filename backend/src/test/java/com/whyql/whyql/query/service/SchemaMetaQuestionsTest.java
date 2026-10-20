@@ -87,4 +87,28 @@ class SchemaMetaQuestionsTest {
     assertThat(SchemaMetaQuestions.classify("list the tables in my schema"))
         .isEqualTo(Optional.of(Kind.TABLE_LIST));
   }
+
+  @Test
+  void detectsForeignKeyQuestions() {
+    // The exact question that crashed the validator before the fast path.
+    assertThat(SchemaMetaQuestions.classify(
+        "how many tables are there with foreign key and no foreign key"))
+        .isEqualTo(Optional.of(Kind.FOREIGN_KEYS));
+    assertThat(SchemaMetaQuestions.classify("which tables have foreign keys"))
+        .isEqualTo(Optional.of(Kind.FOREIGN_KEYS));
+    assertThat(SchemaMetaQuestions.classify("list tables without foreign keys"))
+        .isEqualTo(Optional.of(Kind.FOREIGN_KEYS));
+    assertThat(SchemaMetaQuestions.classify("show tables with a foreign key"))
+        .isEqualTo(Optional.of(Kind.FOREIGN_KEYS));
+  }
+
+  @Test
+  void foreignKeyQuestionsGetAWiderWordCap() {
+    assertThat(SchemaMetaQuestions.classify(
+        "how many tables are there in this database of mine that have a foreign key"))
+        .isEqualTo(Optional.of(Kind.FOREIGN_KEYS)); // 15 words: fine when "foreign key" present
+    assertThat(SchemaMetaQuestions.classify(
+        "how many tables are there in this database of mine that have a foreign key relationship clearly"))
+        .isEmpty(); // 17 words: beyond even the FK cap -> fall through to the pipeline
+  }
 }

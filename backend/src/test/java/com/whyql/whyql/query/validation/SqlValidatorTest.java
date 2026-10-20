@@ -51,6 +51,61 @@ class SqlValidatorTest {
   }
 
   @Test
+  void derivedTableInFromIsValid() {
+    // Used to crash with ClassCastException (ParenthesedSelect -> Table cast).
+    SchemaSnapshot snap = snapshot("customers", "orders");
+    SqlValidator.ValidationResult result = validate(
+        "SELECT id, name FROM (SELECT id, name FROM customers ORDER BY name) q LIMIT 10", snap);
+    assertThat(result.valid()).isTrue();
+    assertThat(result.errors()).isEmpty();
+  }
+
+  @Test
+  void unknownTableInsideDerivedTableIsRejected() {
+    SchemaSnapshot snap = snapshot("customers");
+    SqlValidator.ValidationResult result = validate(
+        "SELECT id FROM (SELECT id FROM helper_table) q LIMIT 10", snap);
+    assertThat(result.valid()).isFalse();
+    assertThat(result.errors()).anyMatch(e -> e.contains("helper_table"));
+  }
+
+  @Test
+  void derivedTableInJoinIsChecked() {
+    SchemaSnapshot snap = snapshot("customers", "orders");
+    SqlValidator.ValidationResult result = validate(
+        "SELECT c.name FROM customers c "
+            + "JOIN (SELECT customer_id FROM orders) o ON o.customer_id = c.id LIMIT 10", snap);
+    assertThat(result.valid()).isTrue();
+  }
+
+  @Test
+  void hiddenColumnInsideDerivedTableIsRejected() {
+    SchemaSnapshot snap = snapshot("orders");
+    SqlValidator.ValidationResult result = validate(
+        "SELECT q.ssn FROM (SELECT ssn FROM orders) q LIMIT 10", snap);
+    assertThat(result.valid()).isFalse();
+    assertThat(result.errors()).anyMatch(e -> e.contains("Hidden column"));
+  }
+
+  @Test
+  void dangerousFunctionInsideDerivedTableIsRejected() {
+    SchemaSnapshot snap = snapshot("orders");
+    SqlValidator.ValidationResult result = validate(
+        "SELECT * FROM (SELECT pg_sleep(5) FROM orders) q LIMIT 1", snap);
+    assertThat(result.valid()).isFalse();
+    assertThat(result.errors()).anyMatch(e -> e.contains("Dangerous function"));
+  }
+
+  @Test
+  void unsupportedFromShapesAreRejectedNotCrashed() {
+    SchemaSnapshot snap = snapshot("orders");
+    SqlValidator.ValidationResult result = validate(
+        "SELECT * FROM TABLE(orders) t LIMIT 1", snap);
+    assertThat(result.valid()).isFalse();
+    assertThat(result.errors()).anyMatch(e -> e.contains("Unsupported FROM clause shape"));
+  }
+
+  @Test
   void plainCteSelectIsValid() {
     SchemaSnapshot snap = snapshot("orders");
     SqlValidator.ValidationResult result = validate(

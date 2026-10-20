@@ -35,7 +35,10 @@ public class DataSourceExceptionHandler {
     return switch (code) {
       case DATASOURCE_NOT_FOUND, SNAPSHOT_NOT_FOUND -> HttpStatus.NOT_FOUND;
       case BLOCKED_HOST, UNREACHABLE_HOST, CONNECTION_FAILED -> HttpStatus.BAD_GATEWAY;
-      case NOT_READ_ONLY, ENGINE_MISMATCH -> HttpStatus.UNPROCESSABLE_ENTITY;
+      case NOT_READ_ONLY, ENGINE_MISMATCH, SANDBOX_UNSUPPORTED -> HttpStatus.UNPROCESSABLE_ENTITY;
+      case WRONG_ACCOUNT_PASSWORD -> HttpStatus.UNAUTHORIZED;
+      case NO_ACCOUNT_PASSWORD -> HttpStatus.CONFLICT;
+      case REVEAL_RATE_LIMITED -> HttpStatus.TOO_MANY_REQUESTS;
       default -> HttpStatus.BAD_REQUEST;
     };
   }

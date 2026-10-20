@@ -1,5 +1,6 @@
 package com.whyql.whyql.api.job;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -7,6 +8,8 @@ import org.springframework.stereotype.Component;
 
 import com.whyql.whyql.api.model.Job;
 import com.whyql.whyql.api.model.QueryResult;
+import com.whyql.whyql.api.model.ResultSection;
+import com.whyql.whyql.datasource.domain.ResultEnvelope;
 import com.whyql.whyql.datasource.domain.TabularResult;
 import com.whyql.whyql.jobs.domain.JobStatus;
 
@@ -27,6 +30,7 @@ public class JobMapper {
   }
 
   public Job toGql(com.whyql.whyql.jobs.domain.Job entity) {
+    List<ResultSection> sections = toSections(entity.getResultJson());
     return new Job(
         entity.getId(),
         entity.getStatus().name(),
@@ -35,7 +39,8 @@ public class JobMapper {
         entity.getDataSourceId(),
         entity.getQuestion(),
         entity.getErrorMessage(),
-        toResult(entity.getResultJson()),
+        primaryResult(sections),
+        sections,
         entity.getAnalysis(),
         toClarifying(entity.getQueryPlanJson()),
         entity.getCreatedAt() == null ? null : entity.getCreatedAt().toString(),
@@ -43,6 +48,7 @@ public class JobMapper {
   }
 
   public Job fromEvent(com.whyql.whyql.jobs.event.JobEvent event) {
+    List<ResultSection> sections = toSections(event.resultJson());
     return new Job(
         event.jobId(),
         event.status().name(),
@@ -51,7 +57,8 @@ public class JobMapper {
         event.dataSourceId(),
         event.question(),
         event.errorMessage(),
-        toResult(event.resultJson()),
+        primaryResult(sections),
+        sections,
         event.analysis(),
         toClarifying(event.queryPlanJson()),
         null,
@@ -95,25 +102,53 @@ public class JobMapper {
     };
   }
 
-  private QueryResult toResult(String resultJson) {
+  /**
+   * Result sections for clients: a sections envelope parses part by part; the
+   * legacy single-result JSON wraps as one unnamed OK section. An empty list
+   * means no stored result (GENERAL answers, failures) — never an error.
+   */
+  private List<ResultSection> toSections(String resultJson) {
     if (resultJson == null || resultJson.isBlank()) {
-      return null;
+      return List.of();
     }
     try {
-      TabularResult parsed = objectMapper.readValue(resultJson, TabularResult.class);
-      return new QueryResult(
-          parsed.columns().stream()
-              .map(c -> new QueryResult.ResultColumn(c.name(), c.typeName()))
-              .toList(),
-          parsed.rows().stream()
-              .map(this::normalizeRow)
-              .toList(),
-          parsed.truncated());
+      ResultEnvelope envelope = ResultEnvelope.parse(resultJson, objectMapper);
+      if (envelope == null) {
+        return List.of();
+      }
+      List<ResultSection> sections = new ArrayList<>();
+      for (ResultEnvelope.Section section : envelope.sections()) {
+        sections.add(new ResultSection(
+            section.title(),
+            section.sizeCategory(),
+            section.totalRows(),
+            section.result() == null ? null : toQueryResult(section.result())));
+      }
+      return List.copyOf(sections);
     } catch (Exception e) {
-      // A malformed stored result shouldn't 500 the whole job view; surface
-      // nothing rather than failing the query.
-      return null;
+      // Unparseable stored results must not 500 the job view.
+      return List.of();
     }
+  }
+
+  /** The first section that actually carries rows; null while none rendered. */
+  private QueryResult primaryResult(List<ResultSection> sections) {
+    return sections.stream()
+        .map(ResultSection::result)
+        .filter(java.util.Objects::nonNull)
+        .findFirst()
+        .orElse(null);
+  }
+
+  private QueryResult toQueryResult(TabularResult parsed) {
+    return new QueryResult(
+        parsed.columns().stream()
+            .map(c -> new QueryResult.ResultColumn(c.name(), c.typeName()))
+            .toList(),
+        parsed.rows().stream()
+            .map(this::normalizeRow)
+            .toList(),
+        parsed.truncated());
   }
 
   /**

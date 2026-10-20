@@ -65,7 +65,7 @@ public class PromptBuilder {
     sb.append("LOAD_FILE, INTO OUTFILE, INTO DUMPFILE, or any file/network access.\n");
     sb.append("6. Never reference system schemas (pg_catalog, information_schema, mysql, sys).\n");
     sb.append("7. Return your answer as a JSON object matching QueryPlan: {engine, queryText, ");
-    sb.append("explanation, assumptions, clarifyingQuestions}.\n");
+    sb.append("explanation, assumptions, clarifyingQuestions, sections}.\n");
     sb.append("8. If the question is ambiguous or missing critical information, set ");
     sb.append("clarifyingQuestions to a non-empty list and leave queryText empty.\n");
     sb.append("9. The current date is ").append(DATE_FORMATTER.format(Instant.now())).append(". ");
@@ -74,6 +74,14 @@ public class PromptBuilder {
     sb.append("people not in user profile'), SQL cannot explain — it supplies EVIDENCE: ");
     sb.append("select the rows and columns that make the situation visible (missing joins, ");
     sb.append("nulls, mismatches, dates), so the analysis stage can explain the pattern.\n");
+    sb.append("11. Sections for multi-view questions. When the question asks for several ");
+    sb.append("distinct answers at once ('product summary and monthly trend', 'counts by ");
+    sb.append("status and by region'), set sections to a list of {title, queryText}. Rules: ");
+    sb.append("at most 3 sections; EVERY section is a complete standalone SELECT with its ");
+    sb.append("own LIMIT; queryText is still the primary answer — the first and most ");
+    sb.append("important query MUST be in queryText, never empty and never left out ");
+    sb.append("(sections are extra views stacked on top of it). For single-view ");
+    sb.append("questions leave sections empty.\n");
     sb.append("\n");
     if (dialectHints != null && !dialectHints.isEmpty()) {
       sb.append("DIALECT REMINDERS for ").append(dialect).append(" (these are binding):\n");

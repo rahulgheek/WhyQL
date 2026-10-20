@@ -24,7 +24,8 @@ public class JobService {
   }
 
   @Transactional
-  public Job createJob(UUID dataSourceId, String ownerUserId, String question) {
+  public Job createJob(UUID dataSourceId, String ownerUserId, String question,
+      UUID chatSessionId) {
     Job job = new Job();
     // NOTE: id must be left null so Spring Data save() runs persist (insert).
     // Setting it manually makes save() merge and fail with StaleObjectStateException.

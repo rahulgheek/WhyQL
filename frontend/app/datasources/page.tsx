@@ -146,26 +146,34 @@ export default function DataSourcesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <main className="max-w-7xl mx-auto py-8 px-6 flex flex-col xl:flex-row gap-8">
+    <div className="min-h-screen bg-[#0a0b12]">
+      <main className="max-w-7xl mx-auto py-8 px-6 flex flex-col lg:flex-row gap-8 animate-fade-in">
         <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-bold text-slate-900 mb-8">Data Sources</h1>
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-white mb-1">Data Sources</h1>
+              <p className="text-sm text-slate-400">
+                Connect a database so you can ask questions against it. WhyQL only
+                ever runs read-only queries.
+              </p>
+            </div>
+          </div>
 
-          <div className="grid gap-6 md:grid-cols-2 items-start">
-            <form onSubmit={handleAdd} className="p-6 border border-slate-200 rounded-xl bg-white space-y-4">
-              <h3 className="font-semibold text-slate-900">Add data source</h3>
+          <div className="grid gap-6 lg:grid-cols-2 items-start">
+            <form onSubmit={handleAdd} className="p-6 border border-white/10 rounded-2xl bg-white/5 shadow-sm space-y-4">
+              <h3 className="font-semibold text-white">Add data source</h3>
               {error && (
-                <div className="p-3 rounded bg-red-50 text-red-700 text-sm">
+                <div className="p-3 rounded-xl bg-red-500/10 text-red-400 text-sm border border-red-500/20">
                   {error}
                 </div>
               )}
               {success && (
-                <div className="p-3 rounded bg-green-50 text-green-700 text-sm">
+                <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400 text-sm border border-emerald-500/20">
                   {success}
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">
                   Name
                 </label>
                 <input
@@ -173,24 +181,24 @@ export default function DataSourcesPage() {
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full border border-slate-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-white/20 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">
                   Engine
                 </label>
                 <select
                   value={engine}
                   onChange={(e) => setEngine(e.target.value)}
-                  className="w-full border border-slate-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-white/20 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
                 >
                   <option value="POSTGRES">PostgreSQL</option>
                   <option value="MYSQL">MySQL</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">
                   JDBC URL
                 </label>
                 <input
@@ -201,18 +209,18 @@ export default function DataSourcesPage() {
                   placeholder={
                     ENGINE_SCHEME[engine] + "host[:port]/database"
                   }
-                  className={`w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 ${
-                    check.level === "error" ? "border-red-400" : "border-slate-300"
+                  className={`w-full border rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition ${
+                    check.level === "error" ? "border-red-500" : "border-white/20"
                   }`}
                 />
                 {check.message && (
                   <p
                     className={`mt-1.5 text-xs ${
                       check.level === "error"
-                        ? "text-red-600"
+                        ? "text-red-400"
                         : check.level === "warn"
-                          ? "text-amber-600"
-                          : "text-green-600"
+                          ? "text-amber-400"
+                          : "text-emerald-400"
                     }`}
                   >
                     {check.level === "ok" ? "✓ " : check.level === "warn" ? "⚠ " : "✕ "}
@@ -220,33 +228,33 @@ export default function DataSourcesPage() {
                   </p>
                 )}
               </div>
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 lg:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">
                     Username
                   </label>
                   <input
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    className="w-full border border-slate-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500"
+                    className="w-full border border-white/20 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">
                     Password
                   </label>
                   <input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full border border-slate-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500"
+                    className="w-full border border-white/20 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
                   />
                 </div>
               </div>
               <button
                 type="submit"
-                className="w-full py-2 rounded bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
+                className="w-full py-2.5 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-500 hover:shadow-lg shadow-indigo-500/30 disabled:opacity-50 transition active:scale-95"
                 disabled={submitBlocked}
               >
                 Test &amp; Add
@@ -258,12 +266,12 @@ export default function DataSourcesPage() {
               )}
             </form>
 
-            <div className="p-6 border border-slate-200 rounded-xl bg-white">
-              <h3 className="font-semibold text-slate-900 mb-4">Your data sources</h3>
+            <div className="p-6 border border-white/10 rounded-2xl bg-white/5 shadow-sm">
+              <h3 className="font-semibold text-white mb-4">Your data sources</h3>
               {loading ? (
-                <p className="text-slate-500">Loading...</p>
+                <p className="text-slate-400">Loading...</p>
               ) : queryError ? (
-                <p className="text-sm text-red-600">{queryError.message}</p>
+                <p className="text-sm text-red-400">{queryError.message}</p>
               ) : (data as any)?.dataSources?.length === 0 ? (
                 <p className="text-xs text-slate-500">
                   Nothing yet — the manual on the right shows exactly what to paste.
@@ -271,9 +279,9 @@ export default function DataSourcesPage() {
               ) : (
                 <ul className="space-y-2">
                   {(data as any)?.dataSources?.map((ds: any) => (
-                    <li key={ds.id} className="p-3 border border-slate-200 rounded text-sm">
-                      <div className="font-medium text-slate-900">{ds.name}</div>
-                      <div className="text-xs text-slate-500">
+                    <li key={ds.id} className="p-3 border border-white/10 rounded-xl bg-white/5 text-sm hover:bg-white/10 transition">
+                      <div className="font-medium text-white">{ds.name}</div>
+                      <div className="text-xs text-slate-400">
                         {ds.engine} · {ds.sandbox ? "sandbox" : "live"}
                       </div>
                     </li>
@@ -321,28 +329,30 @@ const EXAMPLES: { label: string; url: string; note: string }[] = [
 function ConnectionManual({ engine }: { engine: string }) {
   const scheme = ENGINE_SCHEME[engine] ?? "jdbc:postgresql://";
   return (
-    <aside className="w-full xl:w-96 shrink-0">
-      <div className="sticky top-8 p-5 border border-slate-200 rounded-xl bg-white space-y-5 text-sm">
-        <div>
-          <h3 className="font-semibold text-slate-900">Connection manual</h3>
-          <p className="text-xs text-slate-500 mt-1">
+    <aside className="w-full lg:w-96 shrink-0">
+      <div className="sticky top-8 p-5 border border-white/10 rounded-2xl bg-white/5 shadow-sm space-y-5 text-sm">
+        <div className="space-y-1">
+          <h3 className="font-semibold text-white">Connection manual</h3>
+          <p className="text-xs text-slate-400">
             What actually works — and how to read the error when it does not.
           </p>
         </div>
 
-        <div>
+        <div className="space-y-2">
           <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1.5">
             The formula ({engine === "MYSQL" ? "MySQL" : "PostgreSQL"})
           </h4>
-          <code className="block p-2.5 rounded bg-slate-50 border border-slate-100 text-xs text-slate-700">
-            {scheme}HOST[:PORT]/DATABASE
-          </code>
-          <ul className="mt-2 space-y-1 text-xs text-slate-600 list-disc pl-4">
-            <li>HOST — the public hostname from your provider, or <code>localhost</code> for your machine
+          <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+            <code className="text-xs text-slate-300 font-mono">
+              {scheme}HOST[:PORT]/DATABASE
+            </code>
+          </div>
+          <ul className="mt-2 space-y-1 text-xs text-slate-400 list-disc pl-4">
+            <li>HOST — the public hostname from your provider, or <code className="font-mono text-slate-300">localhost</code> for your machine
             </li>
             <li>PORT — optional if standard: 5432 is Postgres default, 3306 is MySQL default
             </li>
-            <li>DATABASE — the name after the <code>/</code>; leaving it empty usually fails
+            <li>DATABASE — the name after the <code className="font-mono text-slate-300">/</code>; leaving it empty usually fails
             </li>
             <li>
               Engine selected on the form must match the URL prefix
@@ -350,58 +360,58 @@ function ConnectionManual({ engine }: { engine: string }) {
             </li>
             <li>
               Username/Password belong in the two fields below the URL — never attach
-              <code> user=…</code> or password values into the URL itself
+              <code className="font-mono text-slate-300"> user=…</code> or password values into the URL itself
             </li>
           </ul>
         </div>
 
-        <div>
+        <div className="space-y-2">
           <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1.5">
             Valid examples
           </h4>
           <ul className="space-y-2.5">
             {EXAMPLES.map((ex) => (
-              <li key={ex.label} className="border border-slate-100 rounded p-2.5">
-                <p className="text-xs font-medium text-slate-800 mb-1">{ex.label}</p>
-                <p className="text-[11px] font-mono text-slate-700 break-all bg-slate-50 border border-slate-100 rounded px-2 py-1">
+              <li key={ex.label} className="border border-white/10 rounded-xl p-3 hover:border-indigo-500/50 transition">
+                <p className="text-xs font-medium text-white mb-1">{ex.label}</p>
+                <p className="text-[11px] font-mono text-slate-300 break-all bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5">
                   {ex.url}
                 </p>
-                <p className="text-[11px] text-slate-500 mt-1">{ex.note}</p>
+                <p className="text-[11px] text-slate-400 mt-1.5">{ex.note}</p>
               </li>
             ))}
           </ul>
         </div>
 
-        <div>
+        <div className="space-y-2">
           <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1.5">
             Not valid
           </h4>
-          <ul className="space-y-1.5 text-xs text-slate-600">
-            <li><code className="text-red-600">postgresql://host/db</code> — missing <code>jdbc:</code> prefix</li>
-            <li><code className="text-red-600">{scheme}host</code> — no <code>/database</code> part</li>
-            <li><code className="text-red-600">jdbc:postgresql://host/db</code> chosen while engine = MySQL (scheme must match)</li>
-            <li><code className="text-red-600">{scheme}localhost:3306/db</code> for a <em>cloud</em> database — localhost is your own machine, the app cannot reach its DB until it runs in local mode</li>
+          <ul className="space-y-1.5 text-xs text-slate-400">
+            <li><code className="text-red-400 font-mono">postgresql://host/db</code> — missing <code className="font-mono text-slate-300">jdbc:</code> prefix</li>
+            <li><code className="text-red-400 font-mono">{scheme}host</code> — no <code className="font-mono text-slate-300">/database</code> part</li>
+            <li><code className="text-red-400 font-mono">jdbc:postgresql://host/db</code> chosen while engine = MySQL (scheme must match)</li>
+            <li><code className="text-red-400 font-mono">{scheme}localhost:3306/db</code> for a <em className="text-white">cloud</em> database — localhost is your own machine, the app cannot reach its DB until it runs in local mode</li>
           </ul>
         </div>
 
-        <div>
+        <div className="space-y-2">
           <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1.5">
             Errors and what they confess
           </h4>
-          <ul className="space-y-1.5 text-xs text-slate-600">
-            <li><b>Username or password was rejected</b> — the server answered but refused the login: wrong password, wrong username, or the account does not exist. On Neon/Supabase, reset the password from the dashboard and paste carefully (no quotes, no spaces).</li>
-            <li><b>Database does not exist</b> — the host is right but the name after <code>/</code> is wrong.</li>
-            <li><b>Could not reach the database server</b> — wrong host/port, the provider blocks your IP (add it to their IP allowlist), or the database is paused (Neon free tiers scale to zero).</li>
-            <li><b>Host name could not be resolved</b> — typo in the host, or you pasted only part of it.</li>
-            <li><b>Host resolves to a blocked (internal) address</b> — you pointed at a private/localhost address while the app runs in cloud mode; run locally or allowlist the host.</li>
-            <li><b>URL scheme does not match the engine</b> — postgres URL with engine MySQL or vice versa.</li>
+          <ul className="space-y-1.5 text-xs text-slate-400">
+            <li><b className="text-white">Username or password was rejected</b> — the server answered but refused the login: wrong password, wrong username, or the account does not exist. On Neon/Supabase, reset the password from the dashboard and paste carefully (no quotes, no spaces).</li>
+            <li><b className="text-white">Database does not exist</b> — the host is right but the name after <code className="font-mono text-slate-300">/</code> is wrong.</li>
+            <li><b className="text-white">Could not reach the database server</b> — wrong host/port, the provider blocks your IP (add it to their IP allowlist), or the database is paused (Neon free tiers scale to zero).</li>
+            <li><b className="text-white">Host name could not be resolved</b> — typo in the host, or you pasted only part of it.</li>
+            <li><b className="text-white">Host resolves to a blocked (internal) address</b> — you pointed at a private/localhost address while the app runs in cloud mode; run locally or allowlist the host.</li>
+            <li><b className="text-white">URL scheme does not match the engine</b> — postgres URL with engine MySQL or vice versa.</li>
           </ul>
         </div>
 
-        <p className="text-xs text-slate-400 border-t border-slate-100 pt-3">
-          The database user only needs <b>read</b> access — WhyQL is read-only by design
+        <p className="text-xs text-slate-400 border-t border-white/10 pt-3">
+          The database user only needs <b className="text-white">read</b> access — WhyQL is read-only by design
           ({""}
-          <Link href="/ask" className="text-blue-600 hover:underline">
+          <Link href="/ask" className="text-indigo-400 hover:underline">
             try a question
           </Link>
           ). A read-only role is safer and satisfies the superuser warning.

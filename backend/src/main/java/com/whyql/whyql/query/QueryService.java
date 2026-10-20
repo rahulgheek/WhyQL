@@ -102,4 +102,13 @@ public interface QueryService {
    * the plain result table.
    */
   String analyzeExplanation(String question, TabularResult result);
+
+  /**
+   * How many rows the query would return in total, via a cheap read-only
+   * probe ({@code SELECT COUNT(*) FROM ( query ) q}). Used when a result
+   * exceeds the table size policy so the client can say "2,341,105 rows" instead
+   * of "too many to count". Null when the probe fails (or answer unreadable) —
+   * callers degrade to a ">N rows" phrasing, never an error.
+   */
+  Long countRows(UUID dataSourceId, String ownerUserId, QueryPlan plan);
 }

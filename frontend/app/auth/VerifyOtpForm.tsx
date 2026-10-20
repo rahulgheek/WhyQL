@@ -52,13 +52,13 @@ export function VerifyOtpForm({
   return (
     <form onSubmit={handleVerify} className="space-y-4">
       {error && (
-        <div className="p-3 rounded bg-red-50 text-red-700 text-sm">{error}</div>
+        <div className="p-3 rounded-xl bg-red-500/10 text-red-400 text-sm border border-red-500/20">{error}</div>
       )}
       {info && (
-        <div className="p-3 rounded bg-green-50 text-green-700 text-sm">{info}</div>
+        <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400 text-sm border border-emerald-500/20">{info}</div>
       )}
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">
+        <label className="block text-sm font-medium text-slate-300 mb-1.5">
           6-digit code sent to {email}
         </label>
         <input
@@ -69,23 +69,23 @@ export function VerifyOtpForm({
           maxLength={6}
           value={code}
           onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-          className="w-full border border-slate-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 tracking-widest text-center text-lg"
+          className="w-full border border-white/20 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 tracking-widest text-center text-lg transition"
         />
       </div>
       <button
         type="submit"
         disabled={code.length !== 6 || busy}
-        className="w-full py-2 rounded bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
+        className="w-full py-2.5 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-500 hover:shadow-lg shadow-indigo-500/30 disabled:opacity-50 transition active:scale-95"
       >
         {busy ? "Verifying…" : "Verify"}
       </button>
-      <p className="text-sm text-center text-slate-600">
+      <p className="text-sm text-center text-slate-400">
         Didn&apos;t get a code?{" "}
         <button
           type="button"
           onClick={handleResend}
           disabled={busy}
-          className="text-blue-600 hover:underline"
+          className="text-indigo-400 hover:underline font-medium"
         >
           Resend OTP
         </button>

@@ -28,15 +28,21 @@ public class ApiQueryResolver {
   private final JobMapper jobMapper;
   private final DashboardService dashboardService;
   private final DashboardCardMapper dashboardCardMapper;
+  private final com.whyql.whyql.chat.service.ChatService chatService;
+  private final com.whyql.whyql.api.chat.ChatMapper chatMapper;
 
   public ApiQueryResolver(DataSourceService dataSourceService, JobService jobService,
       JobMapper jobMapper, DashboardService dashboardService,
-      DashboardCardMapper dashboardCardMapper) {
+      DashboardCardMapper dashboardCardMapper,
+      com.whyql.whyql.chat.service.ChatService chatService,
+      com.whyql.whyql.api.chat.ChatMapper chatMapper) {
     this.dataSourceService = dataSourceService;
     this.jobService = jobService;
     this.jobMapper = jobMapper;
     this.dashboardService = dashboardService;
     this.dashboardCardMapper = dashboardCardMapper;
+    this.chatService = chatService;
+    this.chatMapper = chatMapper;
   }
 
   @QueryMapping
@@ -59,5 +65,28 @@ public class ApiQueryResolver {
     return dashboardService.list(auth.getName()).stream()
         .map(dashboardCardMapper::toGql)
         .toList();
+  }
+
+  /** Paged chat sessions for the dashboard (default 10 per page). */
+  @QueryMapping
+  public com.whyql.whyql.api.model.ChatSessionPage chatSessions(
+      @Argument Integer page, @Argument Integer size, Authentication auth) {
+    AuthGuards.requireUser(auth);
+    return chatMapper.toSessionPage(chatService.sessionsPage(auth.getName(),
+        page == null ? 0 : page, size == null ? 10 : size));
+  }
+
+  /**
+   * Backwards-paged messages: page 0 is the newest window; items ascending.
+   * Ownership is enforced — foreign session ids resolve to nothing.
+   */
+  @QueryMapping
+  public com.whyql.whyql.api.model.ChatMessagePage chatMessages(
+      @Argument java.util.UUID sessionId, @Argument Integer page,
+      @Argument Integer size, Authentication auth) {
+    AuthGuards.requireUser(auth);
+    AuthGuards.requireOwnSession(chatService, sessionId, auth);
+    return chatMapper.toMessagePage(chatService.messagesPageBidirectional(sessionId,
+        page == null ? 0 : page, size == null ? 30 : size));
   }
 }

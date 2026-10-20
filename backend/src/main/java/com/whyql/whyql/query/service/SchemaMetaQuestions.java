@@ -19,8 +19,11 @@ public final class SchemaMetaQuestions {
 
   private SchemaMetaQuestions() {}
 
-  /** Meta questions are short; anything longer is a data question. */
+  /** Meta questions are short; anything longer is a data question. The FK
+   * check has its own, wider cap because "foreign key" never appears in
+   * ordinary data questions — false positives would need it by accident. */
   private static final int MAX_WORDS = 9;
+  private static final int MAX_WORDS_FOREIGN_KEY = 16;
 
   /** "how many tables are there", "number of tables in the database", "how many tables does it have". */
   private static final Pattern TABLE_COUNT = Pattern.compile(
@@ -32,6 +35,14 @@ public final class SchemaMetaQuestions {
           + "|\\blist\\b[^.?\"]*\\btables?\\b"
           + "|\\bshow\\b[^.?\"]*\\btables?\\b"
           + "|\\btables?\\s+(in|of|from)\\s+(the|this|my|our)\\s+(database|db|schema)");
+
+  /**
+   * "how many tables are there with foreign key and no foreign key", "which
+   * tables have foreign keys", "list tables without foreign keys". Requires
+   * the explicit term, so data questions that merely mention a table never
+   * take the fast path.
+   */
+  private static final Pattern FOREIGN_KEYS = Pattern.compile("\\bforeign\\s+keys?\\b");
 
   /** "how many schemas are there", "number of schemas in the database". */
   private static final Pattern SCHEMA_COUNT = Pattern.compile(
@@ -45,24 +56,31 @@ public final class SchemaMetaQuestions {
       "\\b(name|list|show|give|what|which)\\b[^.?\"]*\\bschemas?\\b"
           + "|\\b(all|the)\\s+schemas?\\s+(in|of|from)\\b");
 
-  public enum Kind { TABLE_COUNT, TABLE_LIST, SCHEMA_COUNT, SCHEMA_LIST }
+  public enum Kind { TABLE_COUNT, TABLE_LIST, SCHEMA_COUNT, SCHEMA_LIST, FOREIGN_KEYS }
 
   /**
    * Classifies the question: present when it is a schema-meta question about
-   * tables or schemas, with the kind of answer wanted. Table intents are
-   * checked first because table questions routinely contain the word
-   * "schema" ("tables in the schema"). Never throws.
+   * tables or schemas, with the kind of answer wanted. The foreign-key pattern
+   * wins first because FK questions usually also match the plain table
+   * patterns ("how many tables … with foreign key"). Table intents are checked
+   * next because table questions routinely contain the word "schema" ("tables
+   * in the schema"). Never throws.
    */
   public static Optional<Kind> classify(String question) {
     if (question == null || question.isBlank()) {
       return Optional.empty();
     }
     String q = question.toLowerCase(Locale.ROOT).trim();
-    if (q.split("\\s+").length > MAX_WORDS) {
+    int words = q.split("\\s+").length;
+    boolean fkQuestion = FOREIGN_KEYS.matcher(q).find();
+    if (words > MAX_WORDS && !(fkQuestion && words <= MAX_WORDS_FOREIGN_KEY)) {
       return Optional.empty();
     }
     if (!q.matches(".*\\b(tables?|schemas?)\\b.*")) {
       return Optional.empty();
+    }
+    if (fkQuestion) {
+      return Optional.of(Kind.FOREIGN_KEYS);
     }
     if (TABLE_COUNT.matcher(q).find()) {
       return Optional.of(Kind.TABLE_COUNT);

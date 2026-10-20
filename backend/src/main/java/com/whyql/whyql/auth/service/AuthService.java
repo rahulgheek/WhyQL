@@ -185,6 +185,64 @@ public class AuthService {
   }
 
   /**
+   * Step 1 of "adopt a local password" for OAuth-only accounts: email a
+   * 6-digit code to the caller's verified address. The account must be a
+   * signed-in OAuth user without a local password — password accounts
+   * verify with the password itself (the credential-reveal gate).
+   */
+  @Transactional
+  public void sendSetPasswordOtp(String userId, String ip) {
+    User user = userRepository.findById(UUID.fromString(userId))
+        .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_FOUND, "user not found"));
+    if (user.getPasswordHash() != null) {
+      throw new AuthException(AuthErrorCode.PASSWORD_ALREADY_SET,
+          "this account already has a local password; use it directly");
+    }
+    issueNewOtp(user, ip);
+  }
+
+  /**
+   * Step 2: verify the emailed code and store the new local password hash.
+   * The account keeps its VERIFIED status (this is an upgrade, not a
+   * registration) and email+password sign-in starts working automatically.
+   */
+  @Transactional
+  public void setPassword(String userId, String code, String password) {
+    User user = userRepository.findById(UUID.fromString(userId))
+        .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_FOUND, "user not found"));
+    if (user.getPasswordHash() != null) {
+      throw new AuthException(AuthErrorCode.PASSWORD_ALREADY_SET,
+          "this account already has a local password; use it directly");
+    }
+    if (password == null || password.trim().length() < PASSWORD_MIN_LENGTH) {
+      throw new AuthException(AuthErrorCode.INVALID_PASSWORD,
+          "password must be at least " + PASSWORD_MIN_LENGTH + " characters");
+    }
+    if (code == null || code.length() != 6 || !code.chars().allMatch(Character::isDigit)) {
+      throw new AuthException(AuthErrorCode.INVALID_OTP, "verification code must be 6 digits");
+    }
+
+    Optional<String> stored = otpStore.getOtpHash(user.getEmail());
+    if (stored.isEmpty()) {
+      throw new AuthException(AuthErrorCode.OTP_EXPIRED,
+          "verification code expired or already used; request a new one");
+    }
+    if (rateLimiter.attempts(user.getEmail()) >= OTP_ATTEMPTS_MAX) {
+      throw new AuthException(AuthErrorCode.OTP_ATTEMPTS_EXCEEDED,
+          "too many verification attempts; request a new code");
+    }
+    if (!passwordEncoder.matches(code, stored.get())) {
+      rateLimiter.recordAttempt(user.getEmail());
+      throw new AuthException(AuthErrorCode.INVALID_OTP, "invalid verification code");
+    }
+
+    user.setPasswordHash(passwordEncoder.encode(password));
+    userRepository.save(user);
+    otpStore.deleteOtpHash(user.getEmail());
+    rateLimiter.resetAttempts(user.getEmail());
+  }
+
+  /**
    * Generate, store and email a fresh OTP for a pending user, enforcing the
    * resend rate limit (3/hour per email and per IP). Shared by resendOtp and
    * the re-registration-of-a-pending-account path.

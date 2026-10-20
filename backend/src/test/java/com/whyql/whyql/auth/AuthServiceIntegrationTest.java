@@ -278,4 +278,38 @@ class AuthServiceIntegrationTest {
     assertThatThrownBy(() -> auth.loginWithOAuth("github", "gh-unknown", null))
         .satisfies(t -> assertCode(t, AuthErrorCode.OAUTH_EMAIL_MISSING));
   }
+
+  @Test
+  void oauthUserCanAdoptLocalPasswordAndThenUseIt() {
+    ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+    auth.loginWithOAuth("github", "gh-setpw-1", "oscar@example.com");
+    String userId = users.findByEmail("oscar@example.com").orElseThrow().getId().toString();
+
+    // Step 1 emails a code; step 2 verifies it and stores the local hash.
+    auth.sendSetPasswordOtp(userId, "10.7.7.1");
+    String code = capturedOtp(captor);
+
+    assertThatThrownBy(() -> auth.setPassword(userId, "000000", "Adopted!Pass1"))
+        .satisfies(t -> assertCode(t, AuthErrorCode.INVALID_OTP));
+
+    auth.setPassword(userId, code, "Adopted!Pass1");
+
+    // Email+password sign-in now works, and the gate reports a password instead.
+    assertThat(auth.login("oscar@example.com", "Adopted!Pass1").accessToken()).isNotBlank();
+
+    // The account cannot adopt another password afterwards.
+    assertThatThrownBy(() -> auth.sendSetPasswordOtp(userId, "10.7.7.2"))
+        .satisfies(t -> assertCode(t, AuthErrorCode.PASSWORD_ALREADY_SET));
+    assertThatThrownBy(() -> auth.setPassword(userId, code, "Other!Pass1"))
+        .satisfies(t -> assertCode(t, AuthErrorCode.PASSWORD_ALREADY_SET));
+  }
+
+  @Test
+  void passwordAccountsCannotUseTheAdoptFlow() {
+    auth.register("paula@example.com", "Str0ng!Pass", "10.8.8.1");
+    String userId = users.findByEmail("paula@example.com").orElseThrow().getId().toString();
+
+    assertThatThrownBy(() -> auth.sendSetPasswordOtp(userId, "10.8.8.1"))
+        .satisfies(t -> assertCode(t, AuthErrorCode.PASSWORD_ALREADY_SET));
+  }
 }

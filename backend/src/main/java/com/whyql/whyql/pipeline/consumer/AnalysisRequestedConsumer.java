@@ -7,7 +7,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
+import com.whyql.whyql.chat.service.ChatService;
 import com.whyql.whyql.datasource.domain.QueryPlan;
+import com.whyql.whyql.datasource.domain.ResultEnvelope;
 import com.whyql.whyql.datasource.domain.SchemaSnapshot;
 import com.whyql.whyql.datasource.domain.TabularResult;
 import com.whyql.whyql.jobs.domain.Job;
@@ -39,17 +41,20 @@ public class AnalysisRequestedConsumer {
   private final SchemaDocsService schemaDocs;
   private final QueryService queryService;
   private final ObjectMapper objectMapper;
+  private final ChatService chatService;
 
   public AnalysisRequestedConsumer(JobService jobService,
       com.whyql.whyql.jobs.service.JobEventPublisher jobEventPublisher,
       SchemaDocsService schemaDocs,
       QueryService queryService,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      ChatService chatService) {
     this.jobService = jobService;
     this.jobEventPublisher = jobEventPublisher;
     this.schemaDocs = schemaDocs;
     this.queryService = queryService;
     this.objectMapper = objectMapper;
+    this.chatService = chatService;
   }
 
   @KafkaListener(topics = JobTopics.ANALYSIS_REQUESTED, groupId = "whyql-query")
@@ -83,6 +88,10 @@ public class AnalysisRequestedConsumer {
       }
       job.markCompleted(job.getResultJson());
       jobService.save(job);
+      if (job.getChatSessionId() != null) {
+        chatService.recordAssistantMessage(job.getChatSessionId(), job.getOwnerUserId(),
+            job.getAnalysis(), jobId);
+      }
       jobEventPublisher.notifyCompleted(job);
     } catch (Exception e) {
       log.error("Completion failed for job {}", jobId, e);
@@ -91,6 +100,10 @@ public class AnalysisRequestedConsumer {
         job.markFailed("completion failed: " + e.getMessage());
         jobService.save(job);
         jobEventPublisher.notifyFailed(job);
+        if (job.getChatSessionId() != null) {
+          chatService.recordAssistantMessage(job.getChatSessionId(),
+              job.getOwnerUserId(), null, jobId);
+        }
       } catch (Exception ignored) {
         log.error("Could not even mark job {} failed: {}", jobId, e.getMessage());
       }
@@ -101,9 +114,8 @@ public class AnalysisRequestedConsumer {
   /** Narrative for why-questions, absorbed; null keeps the plain table. */
   private String buildAnalysis(Job job) {
     try {
-      TabularResult result = job.getResultJson() == null || job.getResultJson().isBlank()
-          ? null
-          : objectMapper.readValue(job.getResultJson(), TabularResult.class);
+      ResultEnvelope envelope = ResultEnvelope.parse(job.getResultJson(), objectMapper);
+      TabularResult result = envelope == null ? null : envelope.primaryResult();
       return queryService.analyzeExplanation(job.getQuestion(), result);
     } catch (Exception e) {
       log.warn("Analysis skipped for job {}: {}", job.getId(), e.getMessage());

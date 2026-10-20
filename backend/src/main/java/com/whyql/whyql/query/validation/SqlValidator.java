@@ -24,6 +24,9 @@ public class SqlValidator {
       "copy", "load_file", "into_outfile", "into_dumpfile",
       "xp_cmdshell", "openrowset", "opendatasource"));
 
+  /** Depth guard for FROM-side derived tables (subqueries in FROM/JOIN). */
+  private static final int MAX_SUBQUERY_DEPTH = 16;
+
   public record ValidationResult(
       boolean valid,
       List<String> errors) {}
@@ -74,10 +77,11 @@ public class SqlValidator {
       errors.add("SELECT must enforce a LIMIT clause");
     }
 
-    // Collect all tables referenced across every SELECT component
+    // Collect all tables referenced across every SELECT component — including
+    // tables inside FROM-side derived tables, which are part of the statement.
     Set<String> referencedTables = new HashSet<>();
     for (net.sf.jsqlparser.statement.select.PlainSelect leaf : leaves) {
-      referencedTables.addAll(collectTables(leaf));
+      referencedTables.addAll(collectTables(leaf, errors));
     }
 
     // CTE aliases are temporary names defined by the query itself; they are
@@ -196,32 +200,84 @@ public class SqlValidator {
     return null;
   }
 
-  private Set<String> collectTables(net.sf.jsqlparser.statement.select.PlainSelect ps) {
+  private Set<String> collectTables(net.sf.jsqlparser.statement.select.PlainSelect ps,
+      List<String> errors) {
+    return collectTablesInSelect(ps, errors, 0);
+  }
+
+  /**
+   * Collects table names for the allowlist check, recursing through FROM-side
+   * derived tables ({@code FROM (SELECT ...) q}) so their inner tables are
+   * validated too. Unknown FROM shapes are rejected instead of assumed — a
+   * cast-based shortcut here once crashed the whole job.
+   */
+  private Set<String> collectTablesInSelect(
+      net.sf.jsqlparser.statement.select.PlainSelect ps, List<String> errors, int depth) {
     Set<String> tables = new HashSet<>();
     if (ps == null) return tables;
-
-    net.sf.jsqlparser.schema.Table from = ps.getFromItem(
-        net.sf.jsqlparser.schema.Table.class);
-    if (from != null && from.getName() != null) {
-      tables.add(from.getName());
+    if (depth > MAX_SUBQUERY_DEPTH) {
+      errors.add("Query nesting too deep");
+      return tables;
     }
 
+    tablesInFromItem(ps.getFromItem(), tables, errors, depth);
     var joins = ps.getJoins();
     if (joins != null) {
       for (var join : joins) {
-        if (join != null && join.getRightItem() != null
-            && join.getRightItem() instanceof net.sf.jsqlparser.schema.Table t) {
-          tables.add(t.getName());
+        if (join != null && join.getRightItem() != null) {
+          tablesInFromItem(join.getRightItem(), tables, errors, depth);
         }
       }
     }
-
     return tables;
+  }
+
+  /** Adds the tables reachable through one FROM/JOIN item; unknown shapes fail closed. */
+  private void tablesInFromItem(net.sf.jsqlparser.statement.select.FromItem item,
+      Set<String> tables, List<String> errors, int depth) {
+    if (item == null) {
+      return;
+    }
+    if (item instanceof net.sf.jsqlparser.schema.Table t) {
+      if (t.getName() != null) {
+        tables.add(t.getName());
+      }
+      return;
+    }
+    if (item instanceof net.sf.jsqlparser.statement.select.ParenthesedSelect paren) {
+      try {
+        net.sf.jsqlparser.statement.select.Select inner = paren.getSelect();
+        if (inner == null || inner == (net.sf.jsqlparser.statement.select.Select) paren) {
+          errors.add("Unsupported FROM clause shape");
+          return;
+        }
+        var innerLeaves = resolveLeaves(inner, depth + 1);
+        if (innerLeaves == null) {
+          errors.add("Unsupported FROM clause shape");
+          return;
+        }
+        for (var leaf : innerLeaves) {
+          tables.addAll(collectTablesInSelect(leaf, errors, depth + 1));
+        }
+      } catch (Exception e) {
+        errors.add("Unsupported FROM clause shape");
+      }
+      return;
+    }
+    // Table functions, unnests, row constructors, anything unrecognized.
+    errors.add("Unsupported FROM clause shape: " + item.getClass().getSimpleName());
   }
 
   private Set<String> collectColumns(net.sf.jsqlparser.statement.select.PlainSelect ps) {
     Set<String> columns = new HashSet<>();
-    if (ps == null) return columns;
+    collectColumnsInSelect(ps, columns, 0);
+    return columns;
+  }
+
+  /** Column collection recursing into FROM-side derived tables (hidden-column gate). */
+  private void collectColumnsInSelect(net.sf.jsqlparser.statement.select.PlainSelect ps,
+      Set<String> columns, int depth) {
+    if (ps == null) return;
 
     for (var item : ps.getSelectItems()) {
       if (item != null) {
@@ -244,7 +300,55 @@ public class SqlValidator {
       }
     }
 
-    return columns;
+    // Derived tables in FROM/JOIN bring their own column references.
+    forEachFromSubquery(ps, depth, inner -> collectColumnsInSelect(inner, columns, depth + 1));
+  }
+
+  /** From-items of this select that may carry derived tables (FROM item + JOIN rights). */
+  private List<net.sf.jsqlparser.statement.select.FromItem> fromItemsOf(
+      net.sf.jsqlparser.statement.select.PlainSelect ps) {
+    List<net.sf.jsqlparser.statement.select.FromItem> items = new ArrayList<>();
+    items.add(ps.getFromItem());
+    var joins = ps.getJoins();
+    if (joins != null) {
+      for (var join : joins) {
+        if (join != null && join.getRightItem() != null) {
+          items.add(join.getRightItem());
+        }
+      }
+    }
+    return items;
+  }
+
+  /**
+   * Runs an action on every PlainSelect reachable through FROM/JOIN derived
+   * tables, one nesting level down. Unresolvable shapes contribute nothing —
+   * the table collector reports them.
+   */
+  private void forEachFromSubquery(net.sf.jsqlparser.statement.select.PlainSelect ps,
+      int depth,
+      java.util.function.Consumer<net.sf.jsqlparser.statement.select.PlainSelect> action) {
+    for (net.sf.jsqlparser.statement.select.FromItem item : fromItemsOf(ps)) {
+      if (!(item instanceof net.sf.jsqlparser.statement.select.ParenthesedSelect paren)) {
+        continue;
+      }
+      try {
+        net.sf.jsqlparser.statement.select.Select inner = paren.getSelect();
+        if (inner == null || inner == (net.sf.jsqlparser.statement.select.Select) paren) {
+          continue;
+        }
+        var innerLeaves = resolveLeaves(inner, depth + 1);
+        if (innerLeaves == null) {
+          continue;
+        }
+        for (var leaf : innerLeaves) {
+          action.accept(leaf);
+          forEachFromSubquery(leaf, depth + 1, action);
+        }
+      } catch (Exception e) {
+        // Unresolvable nested shapes are reported by the table collector.
+      }
+    }
   }
 
   private void extractColumnsFromExpression(net.sf.jsqlparser.expression.Expression expr,
@@ -269,6 +373,15 @@ public class SqlValidator {
 
   private void checkForDangerousFunctions(
       net.sf.jsqlparser.statement.select.PlainSelect ps, List<String> errors) {
+    checkFunctionsInSelect(ps, errors, 0);
+  }
+
+  /**
+   * Function scan recursing into FROM-side derived tables — without this,
+   * {@code SELECT * FROM (SELECT pg_sleep(5)) q} would bypass the gate.
+   */
+  private void checkFunctionsInSelect(
+      net.sf.jsqlparser.statement.select.PlainSelect ps, List<String> errors, int depth) {
     if (ps == null) return;
     checkSelectItemsForFunctions(ps.getSelectItems(), errors);
     if (ps.getWhere() != null) {
@@ -285,6 +398,9 @@ public class SqlValidator {
           // Skip joins that can't be introspected
         }
       }
+    }
+    if (depth <= MAX_SUBQUERY_DEPTH) {
+      forEachFromSubquery(ps, depth, inner -> checkFunctionsInSelect(inner, errors, depth + 1));
     }
   }
 

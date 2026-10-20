@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -19,7 +20,10 @@ import org.springframework.web.bind.annotation.RestController;
 import com.whyql.whyql.datasource.domain.DataSourceView;
 import com.whyql.whyql.datasource.dto.DataSourceDtos.AddDataSourceRequest;
 import com.whyql.whyql.datasource.dto.DataSourceDtos.DataSourceResponse;
+import com.whyql.whyql.datasource.dto.DataSourceDtos.RevealedCredentialsResponse;
+import com.whyql.whyql.datasource.dto.DataSourceDtos.RevealRequest;
 import com.whyql.whyql.datasource.dto.DataSourceDtos.TestConnectionResponse;
+import com.whyql.whyql.datasource.dto.DataSourceDtos.UpdateCredentialsRequest;
 import com.whyql.whyql.datasource.service.DataSourceService;
 
 /**
@@ -45,6 +49,33 @@ public class DataSourceController {
         request.name(), request.engine(), request.jdbcUrl(), request.username(),
         request.password());
     return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(result.view(), result.warnings()));
+  }
+
+  /**
+   * Rotates stored credentials (any subset of url/username/password; null
+   * fields keep the stored value). The merged connection is tested live
+   * before anything is saved — a typo never bricks the source.
+   */
+  @PutMapping("/{id}/credentials")
+  public TestConnectionResponse updateCredentials(@PathVariable UUID id,
+      @Valid @RequestBody UpdateCredentialsRequest request, Authentication authentication) {
+    List<String> warnings = service.updateCredentials(id, authentication.getName(),
+        request.jdbcUrl(), request.username(), request.password(),
+        request.accountPassword()).warnings();
+    return new TestConnectionResponse(true, warnings);
+  }
+
+  /**
+   * Account-password-gated credential reveal, rate limited per user. This
+   * is the ONLY endpoint that returns the stored plaintext.
+   */
+  @PostMapping("/{id}/credentials/reveal")
+  public RevealedCredentialsResponse reveal(@PathVariable UUID id,
+      @Valid @RequestBody RevealRequest request, Authentication authentication) {
+    DataSourceService.RevealedCredentials revealed = service.revealedCredentials(
+        id, authentication.getName(), request.accountPassword());
+    return new RevealedCredentialsResponse(revealed.id(), revealed.jdbcUrl(),
+        revealed.username(), revealed.password());
   }
 
   @GetMapping

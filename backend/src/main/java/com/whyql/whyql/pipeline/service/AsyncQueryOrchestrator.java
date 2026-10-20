@@ -32,8 +32,9 @@ public class AsyncQueryOrchestrator {
    *
    * @return the queued job (id + QUEUED status)
    */
-  public Job startQuestion(UUID dataSourceId, String ownerUserId, String question) {
-    Job job = jobService.createJob(dataSourceId, ownerUserId, question);
+  public Job startQuestion(UUID dataSourceId, String ownerUserId, String question,
+      UUID chatSessionId) {
+    Job job = jobService.createJob(dataSourceId, ownerUserId, question, chatSessionId);
     jobEventPublisher.publishQueryRequested(job);
     return job;
   }

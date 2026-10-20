@@ -39,7 +39,7 @@ class JobServiceTest {
           return arg;
         });
 
-    Job job = jobService.createJob(UUID.randomUUID(), "user-1", "how many rows?");
+    Job job = jobService.createJob(UUID.randomUUID(), "user-1", "how many rows?", null);
 
     org.junit.jupiter.api.Assertions.assertEquals(
         JobStatus.QUEUED, job.getStatus());

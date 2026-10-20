@@ -96,6 +96,7 @@ type AddDataSourcePayload {
 input AskQuestionInput {
   dataSourceId: ID!
   question: String!
+  chatSessionId: ID
 }
 
 type AskQuestionPayload {
@@ -123,10 +124,19 @@ type Job {
   question: String!
   errorMessage: String
   result: QueryResult
+  resultSections: [ResultSection!]!
   analysis: String
   clarifyingQuestions: [String!]
   createdAt: String
   updatedAt: String
+}
+
+"""One answer part. OK sections carry rows; TOO_LARGE ones carry the count instead."""
+type ResultSection {
+  title: String
+  sizeCategory: String!
+  totalRows: Int
+  result: QueryResult
 }
 
 type DashboardCard {
@@ -139,6 +149,41 @@ type DashboardCard {
   createdAt: String
 }
 
+"""A saved conversation; messageCount badges how much is inside."""
+type ChatSession {
+  id: ID!
+  title: String
+  dataSourceId: ID
+  messageCount: Int!
+  createdAt: String!
+  updatedAt: String!
+}
+
+"""One chat bubble. text may be null — the linked job renders richly."""
+type ChatMessage {
+  id: ID!
+  role: String!
+  text: String
+  jobId: ID
+  createdAt: String!
+}
+
+type ChatSessionPage {
+  items: [ChatSession!]!
+  total: Int!
+  page: Int!
+  size: Int!
+  hasNext: Boolean!
+}
+
+type ChatMessagePage {
+  items: [ChatMessage!]!
+  total: Int!
+  page: Int!
+  size: Int!
+  hasNext: Boolean!
+}
+
 type Query {
   health: String!
   dataSources: [DataSource!]!
@@ -147,6 +192,8 @@ type Query {
   boards: [Board!]!
   board(id: ID!): Board!
   schemaTables(dataSourceId: ID!): [String!]!
+  chatSessions(page: Int, size: Int): ChatSessionPage!
+  chatMessages(sessionId: ID!, page: Int, size: Int): ChatMessagePage!
 }
 
 type Mutation {
@@ -158,6 +205,9 @@ type Mutation {
   removeBoard(id: ID!): Boolean!
   saveBoardWidget(boardId: ID!, input: BoardWidgetInput!): BoardWidget!
   removeBoardWidget(boardId: ID!, widgetId: ID!): Boolean!
+  createChatSession(title: String, dataSourceId: ID): ChatSession!
+  renameChatSession(id: ID!, title: String!): ChatSession!
+  deleteChatSession(id: ID!): Boolean!
 }
 
 type Subscription {

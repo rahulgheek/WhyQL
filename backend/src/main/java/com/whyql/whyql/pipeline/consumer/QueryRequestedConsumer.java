@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
+import com.whyql.whyql.chat.service.ChatService;
 import com.whyql.whyql.datasource.domain.QueryPlan;
 import com.whyql.whyql.datasource.domain.SchemaSnapshot;
 import com.whyql.whyql.datasource.domain.TabularResult;
@@ -37,13 +38,16 @@ public class QueryRequestedConsumer {
   private final QueryService queryService;
   private final JobEventPublisher jobEventPublisher;
   private final ObjectMapper objectMapper;
+  private final ChatService chatService;
 
   public QueryRequestedConsumer(JobService jobService, QueryService queryService,
-      JobEventPublisher jobEventPublisher, ObjectMapper objectMapper) {
+      JobEventPublisher jobEventPublisher, ObjectMapper objectMapper,
+      ChatService chatService) {
     this.jobService = jobService;
     this.queryService = queryService;
     this.jobEventPublisher = jobEventPublisher;
     this.objectMapper = objectMapper;
+    this.chatService = chatService;
   }
 
   @KafkaListener(topics = JobTopics.QUERY_REQUESTED, groupId = "whyql-query")
@@ -59,6 +63,10 @@ public class QueryRequestedConsumer {
     UUID jobId = event.jobId();
     log.info("Stage 1 (generation) for job {}", jobId);
     Job job = jobService.findById(jobId);
+    if (job.getChatSessionId() != null) {
+      chatService.recordUserMessage(job.getChatSessionId(), job.getOwnerUserId(),
+          job.getQuestion(), jobId);
+    }
     job.markGenerating();
     jobService.save(job);
 
@@ -72,6 +80,10 @@ public class QueryRequestedConsumer {
       if (metaAnswer.isPresent()) {
         job.markCompleted(objectMapper.writeValueAsString(metaAnswer.get()));
         jobService.save(job);
+        if (job.getChatSessionId() != null) {
+          chatService.recordAssistantMessage(job.getChatSessionId(), job.getOwnerUserId(),
+              "Answered from the schema snapshot.", jobId);
+        }
         jobEventPublisher.notifyCompleted(job);
         log.info("Job {} answered from the schema snapshot (no LLM needed)", jobId);
         return;
@@ -93,6 +105,10 @@ public class QueryRequestedConsumer {
         job.setAnalysis(answer);
         job.markCompleted(null);
         jobService.save(job);
+        if (job.getChatSessionId() != null) {
+          chatService.recordAssistantMessage(job.getChatSessionId(), job.getOwnerUserId(),
+              answer, jobId);
+        }
         jobEventPublisher.notifyCompleted(job);
         log.info("Job {} answered as general knowledge (no database query)", jobId);
         return;
@@ -109,6 +125,10 @@ public class QueryRequestedConsumer {
       if (plan.clarifyingQuestions() != null && !plan.clarifyingQuestions().isEmpty()) {
         job.markNeedsClarification(planJson);
         jobService.save(job);
+        if (job.getChatSessionId() != null) {
+          chatService.recordAssistantMessage(job.getChatSessionId(), job.getOwnerUserId(),
+              null, jobId);
+        }
         jobEventPublisher.notifyNeedsClarification(job);
         log.info("Job {} needs clarification; pipeline stops here", jobId);
         return;
@@ -121,6 +141,10 @@ public class QueryRequestedConsumer {
       log.error("Generation failed for job {}", jobId, e);
       job.markFailed("generation failed: " + e.getMessage());
       jobService.save(job);
+      if (job.getChatSessionId() != null) {
+        chatService.recordAssistantMessage(job.getChatSessionId(), job.getOwnerUserId(),
+            null, jobId);
+      }
       jobEventPublisher.notifyFailed(job);
     }
   }

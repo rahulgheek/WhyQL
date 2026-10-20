@@ -43,6 +43,7 @@ class ApiResolversTest {
   private JobService jobService;
   private AsyncQueryOrchestrator orchestrator;
   private DashboardService dashboardService;
+  private com.whyql.whyql.chat.service.ChatService chatService;
 
   private ApiQueryResolver queryResolver;
   private ApiMutationResolver mutationResolver;
@@ -57,12 +58,17 @@ class ApiResolversTest {
     jobService = mock(JobService.class);
     orchestrator = mock(AsyncQueryOrchestrator.class);
     dashboardService = mock(DashboardService.class);
+    chatService = mock(com.whyql.whyql.chat.service.ChatService.class);
+    com.whyql.whyql.api.chat.ChatMapper chatMapper =
+        new com.whyql.whyql.api.chat.ChatMapper(chatService);
     queryResolver = new ApiQueryResolver(dataSourceService, jobService,
         new JobMapper(new tools.jackson.databind.ObjectMapper()), dashboardService,
-        new DashboardCardMapper(new tools.jackson.databind.ObjectMapper()));
+        new DashboardCardMapper(new tools.jackson.databind.ObjectMapper()),
+        chatService, chatMapper);
     mutationResolver = new ApiMutationResolver(dataSourceService, orchestrator,
         jobService, dashboardService,
-        new DashboardCardMapper(new tools.jackson.databind.ObjectMapper()));
+        new DashboardCardMapper(new tools.jackson.databind.ObjectMapper()),
+        chatService, chatMapper);
     subscriptionResolver = new ApiSubscriptionResolver(jobService, new JobUpdateHub(new JobMapper(new tools.jackson.databind.ObjectMapper())));
 
     ownedJob = new com.whyql.whyql.jobs.domain.Job();
@@ -151,7 +157,7 @@ class ApiResolversTest {
     queued.setDataSourceId(ownedJob.getDataSourceId());
     queued.setQuestion("revenue by country");
     queued.setStatus(JobStatus.QUEUED);
-    when(orchestrator.startQuestion(any(UUID.class), anyString(), anyString()))
+    when(orchestrator.startQuestion(any(UUID.class), anyString(), anyString(), any()))
         .thenReturn(queued);
 
     AskQuestionPayload payload = mutationResolver.askQuestion(

@@ -18,6 +18,7 @@ public record Job(
     String question,
     String errorMessage,
     QueryResult result,
+    List<ResultSection> resultSections,
     String analysis,
     List<String> clarifyingQuestions,
     String createdAt,

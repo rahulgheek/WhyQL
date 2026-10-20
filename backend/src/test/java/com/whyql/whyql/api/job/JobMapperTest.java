@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import com.whyql.whyql.api.model.Job;
 import com.whyql.whyql.api.model.QueryResult;
+import com.whyql.whyql.datasource.domain.ResultEnvelope;
 import com.whyql.whyql.datasource.domain.TabularResult;
 import com.whyql.whyql.jobs.domain.JobStatus;
 
@@ -63,6 +64,52 @@ class JobMapperTest {
     assertThat(view.result().columns().get(0).typeName()).isEqualTo("text");
     assertThat(view.result().rows()).hasSize(2);
     assertThat(view.result().truncated()).isFalse();
+    // Legacy single results wrap as one unnamed OK section.
+    assertThat(view.resultSections()).hasSize(1);
+    assertThat(view.resultSections().get(0).sizeCategory()).isEqualTo("OK");
+    assertThat(view.resultSections().get(0).totalRows()).isEqualTo(2L);
+    assertThat(view.resultSections().get(0).result()).isNotNull();
+  }
+
+  @Test
+  void toGqlMapsSectionsEnvelopeWithOversizedParts() {
+    com.whyql.whyql.jobs.domain.Job entity = new com.whyql.whyql.jobs.domain.Job();
+    entity.setId(UUID.randomUUID());
+    entity.setOwnerUserId("user-1");
+    entity.setDataSourceId(UUID.randomUUID());
+    entity.setQuestion("summary and trend");
+    entity.setStatus(JobStatus.COMPLETED);
+    entity.setResultJson(sectionsJson());
+
+    Job view = mapper.toGql(entity);
+
+    assertThat(view.resultSections()).hasSize(2);
+    var first = view.resultSections().get(0);
+    assertThat(first.title()).isEqualTo("summary");
+    assertThat(first.sizeCategory()).isEqualTo("OK");
+    assertThat(first.result()).isNotNull();
+    var second = view.resultSections().get(1);
+    assertThat(second.title()).isEqualTo("trend");
+    assertThat(second.sizeCategory()).isEqualTo("TOO_LARGE");
+    assertThat(second.totalRows()).isEqualTo(1_234_567L);
+    assertThat(second.result()).isNull();
+    // The legacy result field is the first section that carries rows.
+    assertThat(view.result()).isNotNull();
+    assertThat(view.result().columns().get(0).name()).isEqualTo("day");
+  }
+
+  @Test
+  void toGqlEmptySectionsForGeneralAnswerJobs() {
+    com.whyql.whyql.jobs.domain.Job general = new com.whyql.whyql.jobs.domain.Job();
+    general.setId(UUID.randomUUID());
+    general.setOwnerUserId("u");
+    general.setDataSourceId(UUID.randomUUID());
+    general.setQuestion("what is SQL");
+    general.setStatus(JobStatus.COMPLETED);
+    general.setResultJson("null");
+
+    assertThat(mapper.toGql(general).resultSections()).isEmpty();
+    assertThat(mapper.toGql(general).result()).isNull();
   }
 
   @Test
@@ -111,6 +158,23 @@ class JobMapperTest {
           List.of(new TabularResult.ResultColumn("country", "text")),
           List.of(List.of("US"), List.of("DE")),
           false));
+    } catch (Exception e) {
+      throw new IllegalStateException(e);
+    }
+  }
+
+  private String sectionsJson() {
+    try {
+      ObjectMapper om = new ObjectMapper();
+      return om.writeValueAsString(new ResultEnvelope(
+          ResultEnvelope.KIND_SECTIONS,
+          List.of(
+              new ResultEnvelope.Section("summary", ResultEnvelope.SIZE_OK, 2L,
+                  new TabularResult(
+                      List.of(new TabularResult.ResultColumn("day", "date")),
+                      List.of(List.of("2026-01-01")), false)),
+              new ResultEnvelope.Section("trend", ResultEnvelope.SIZE_TOO_LARGE,
+                  1_234_567L, null))));
     } catch (Exception e) {
       throw new IllegalStateException(e);
     }

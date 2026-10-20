@@ -30,6 +30,11 @@ public final class AuthDtos {
       @NotBlank @Email String email,
       @NotBlank String password) {}
 
+  /** Step 2 of adopting a local password (OAuth-only accounts). */
+  public record SetPasswordRequest(
+      @NotBlank @Pattern(regexp = "\\d{6}", message = "code must be 6 digits") String code,
+      @NotBlank @Size(min = 8, max = 100) String password) {}
+
   public record RefreshRequest(
       @NotBlank String refreshToken) {}
 

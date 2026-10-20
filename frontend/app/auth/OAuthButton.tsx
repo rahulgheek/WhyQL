@@ -14,7 +14,7 @@ export function OAuthButton({
     <button
       type="button"
       onClick={() => startOAuth(provider)}
-      className="w-full py-2 rounded border border-slate-300 bg-white text-slate-800 text-sm font-medium hover:bg-slate-50 flex items-center justify-center gap-2"
+      className="w-full py-2.5 rounded-xl border border-white/20 bg-white/5 text-slate-200 text-sm font-medium hover:bg-white/10 hover:border-white/30 flex items-center justify-center gap-2 shadow-sm transition"
     >
       {provider === "github" ? <GitHubMark /> : null}
       {label}

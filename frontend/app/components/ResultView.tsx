@@ -78,8 +78,8 @@ const MAX_SERIES = 4;
 const MAX_PIE_SLICES = 8;
 
 const PALETTE = [
-  "#3b82f6", "#14b8a6", "#f59e0b", "#ef4444",
-  "#8b5cf6", "#06b6d4", "#f97316", "#22c55e",
+  "#818cf8", "#22d3ee", "#fbbf24", "#f87171",
+  "#c084fc", "#67e8f9", "#fb923c", "#4ade80",
 ];
 
 /**
@@ -126,7 +126,11 @@ export default function ResultView({
   };
 
   if (!result || result.columns.length === 0) {
-    return <p className="p-4 text-sm text-slate-500">No result snapshot.</p>;
+    return (
+      <div className="flex flex-col items-center justify-center py-6 rounded-xl border border-dashed border-white/10 bg-white/5 text-center">
+        <p className="text-sm text-slate-400">No result snapshot.</p>
+      </div>
+    );
   }
 
   const boardHardTable = chartKind === "TABLE";
@@ -207,7 +211,7 @@ export default function ResultView({
       ) : (
         <>
           {showChart && !resolved.renderable && (
-            <p className="mb-2 p-2.5 rounded bg-amber-50 text-amber-700 text-xs">
+            <p className="mb-2 p-2.5 rounded-xl bg-amber-500/10 text-amber-400 text-xs border border-amber-500/20">
               {resolved.kind === "PIE"
                 ? "A pie chart needs one categorical column and one numeric column — showing the table instead."
                 : "This result cannot be drawn as that chart — showing the table instead."}
@@ -276,10 +280,10 @@ function ViewToggle({
     <button
       type="button"
       onClick={onClick}
-      className={`px-3 py-1 rounded text-xs font-medium ${
+      className={`px-3 py-1.5 rounded-xl text-xs font-medium transition ${
         active
-          ? "bg-slate-800 text-white"
-          : "border border-slate-300 text-slate-600 hover:bg-slate-50"
+          ? "bg-indigo-600 text-white shadow-sm shadow-indigo-500/30"
+          : "border border-white/20 text-slate-400 hover:bg-white/10 hover:border-white/30"
       }`}
     >
       {label}
@@ -306,11 +310,11 @@ function KindToggle({
       disabled={disabled}
       title={title ?? label}
       onClick={onClick}
-      className={`px-2.5 py-1 rounded text-xs font-medium ${
+      className={`px-2.5 py-1.5 rounded-xl text-xs font-medium transition disabled:opacity-40 disabled:cursor-not-allowed ${
         active
-          ? "bg-blue-600 text-white"
-          : "border border-slate-200 text-slate-600 hover:bg-slate-50"
-      } disabled:opacity-40 disabled:cursor-not-allowed`}
+          ? "bg-indigo-600 text-white shadow-sm shadow-indigo-500/30"
+          : "border border-white/20 text-slate-400 hover:bg-white/10 hover:border-white/30"
+      }`}
     >
       {label}
     </button>
@@ -321,15 +325,20 @@ function KindToggle({
 
 function ResultTable({ result }: { result: ResultData }) {
   const rows = result.rows ?? [];
+  const numericCols = new Set(
+    result.columns
+      .map((c, i) => (NUMERIC.test(c.typeName) ? i : -1))
+      .filter((i) => i >= 0),
+  );
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-xs">
+      <table className="refined-table">
         <thead>
           <tr>
             {result.columns.map((col) => (
               <th
                 key={col.name}
-                className="text-left font-medium text-slate-500 pb-2 pr-4 border-b border-slate-200"
+                className="text-left font-medium text-slate-400 pb-2.5 pr-4 border-b border-white/10"
               >
                 {col.name}
               </th>
@@ -338,14 +347,20 @@ function ResultTable({ result }: { result: ResultData }) {
         </thead>
         <tbody>
           {rows.map((row, rowIdx) => (
-            <tr key={rowIdx} className="border-b border-slate-50 last:border-0">
+            <tr
+              key={rowIdx}
+              className="border-b border-white/5 last:border-0 hover:bg-white/5 transition"
+            >
               {result.columns.map((col, colIdx) => {
                 const value = (row as unknown[])[colIdx];
+                const isNumeric = numericCols.has(colIdx);
                 return (
                   <td
                     key={col.name}
                     title={formatCell(value)}
-                    className="py-1.5 pr-4 text-slate-700 max-w-xs truncate"
+                    className={`py-1.5 pr-4 text-slate-300 max-w-xs truncate ${
+                      isNumeric ? "text-right font-mono text-[12px]" : ""
+                    }`}
                   >
                     {formatCell(value)}
                   </td>
@@ -356,7 +371,7 @@ function ResultTable({ result }: { result: ResultData }) {
         </tbody>
       </table>
       {result.truncated && (
-        <p className="text-xs text-slate-400 mt-2">Preview truncated.</p>
+        <p className="text-xs text-slate-400 mt-2.5">Preview truncated.</p>
       )}
     </div>
   );
@@ -582,14 +597,14 @@ function EChart({ result, kind }: { result: ResultData; kind: "BAR" | "LINE" | "
       return {
         color: PALETTE,
         tooltip: { trigger: "item" },
-        legend: { top: 0, type: "scroll", textStyle: { fontSize: 11 } },
+        legend: { top: 0, type: "scroll", textStyle: { fontSize: 11, color: "#94a3b8" } },
         series: [{
           type: "pie",
           radius: ["42%", "70%"],
           center: ["50%", "56%"],
           data: slices,
-          label: { formatter: "{b}: {d}%", fontSize: 11, color: "#475569" },
-          itemStyle: { borderRadius: 4, borderColor: "#fff", borderWidth: 2 },
+          label: { formatter: "{b}: {d}%", fontSize: 11, color: "#94a3b8" },
+          itemStyle: { borderRadius: 4, borderColor: "#0a0b12", borderWidth: 2 },
         }],
       } as ChartOption;
     }
@@ -599,7 +614,7 @@ function EChart({ result, kind }: { result: ResultData; kind: "BAR" | "LINE" | "
       color: PALETTE,
       grid: { left: 8, right: 12, top: 34, bottom: rotate ? 6 : 8, containLabel: true },
       tooltip: { trigger: "axis" },
-      legend: { top: 0, type: "scroll", textStyle: { fontSize: 11 } },
+      legend: { top: 0, type: "scroll", textStyle: { fontSize: 11, color: "#94a3b8" } },
       xAxis: {
         type: "category",
         data: spec.categories,
@@ -609,15 +624,15 @@ function EChart({ result, kind }: { result: ResultData; kind: "BAR" | "LINE" | "
           fontSize: 10,
           width: 96,
           overflow: "truncate",
-          color: "#64748b",
+          color: "#94a3b8",
         },
-        axisLine: { lineStyle: { color: "#e2e8f0" } },
+        axisLine: { lineStyle: { color: "#334155" } },
         axisTick: { show: false },
       },
       yAxis: {
         type: "value",
-        splitLine: { lineStyle: { color: "#f1f5f9" } },
-        axisLabel: { color: "#64748b", fontSize: 10 },
+        splitLine: { lineStyle: { color: "#1e293b" } },
+        axisLabel: { color: "#94a3b8", fontSize: 10 },
       },
       series: spec.series.map((s) =>
         spec.kind === "line" || kind === "LINE"

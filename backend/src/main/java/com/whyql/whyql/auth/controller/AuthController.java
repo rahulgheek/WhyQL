@@ -24,6 +24,7 @@ import com.whyql.whyql.auth.dto.AuthDtos.LogoutRequest;
 import com.whyql.whyql.auth.dto.AuthDtos.RefreshRequest;
 import com.whyql.whyql.auth.dto.AuthDtos.RegisterRequest;
 import com.whyql.whyql.auth.dto.AuthDtos.ResendOtpRequest;
+import com.whyql.whyql.auth.dto.AuthDtos.SetPasswordRequest;
 import com.whyql.whyql.auth.dto.AuthDtos.TokenResponse;
 import com.whyql.whyql.auth.dto.AuthDtos.UserResponse;
 import com.whyql.whyql.auth.dto.AuthDtos.VerifyOtpRequest;
@@ -101,6 +102,32 @@ public class AuthController {
   public UserResponse me(Authentication authentication) {
     AuthService.UserDto user = authService.getUser(authentication.getName());
     return new UserResponse(user.id(), user.email(), user.status().name());
+  }
+
+  /**
+   * Step 1 of "adopt a local password" for OAuth-only accounts: email the
+   * signed-in user a 6-digit code. Requires a Bearer JWT and an account
+   * without a local password; rate limited 3/hour like OTP resends.
+   */
+  @PostMapping("/password/set/init")
+  public AckResponse sendSetPasswordOtp(HttpServletRequest httpRequest,
+      Authentication authentication) {
+    if (authentication == null || !authentication.isAuthenticated()) {
+      throw new AuthException(AuthErrorCode.INVALID_ACCESS_TOKEN, "sign in first");
+    }
+    authService.sendSetPasswordOtp(authentication.getName(), httpRequest.getRemoteAddr());
+    return new AckResponse(true);
+  }
+
+  /** Step 2: verify the emailed code and set the local password hash. */
+  @PostMapping("/password/set")
+  public AckResponse setPassword(
+      @Valid @RequestBody SetPasswordRequest request, Authentication authentication) {
+    if (authentication == null || !authentication.isAuthenticated()) {
+      throw new AuthException(AuthErrorCode.INVALID_ACCESS_TOKEN, "sign in first");
+    }
+    authService.setPassword(authentication.getName(), request.code(), request.password());
+    return new AckResponse(true);
   }
 
   /**

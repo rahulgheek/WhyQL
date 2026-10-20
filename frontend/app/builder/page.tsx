@@ -53,20 +53,25 @@ export default function BuilderPage() {
   }, [board]);
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <main className="max-w-7xl mx-auto p-6">
+    <div className="min-h-screen bg-[#0a0b12]">
+      <main className="max-w-7xl mx-auto p-6 animate-fade-in">
         <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-xl font-bold text-slate-900">Board builder</h1>
-              <Link href="/dashboard" className="text-sm text-blue-600 hover:underline">
-                Dashboard
-              </Link>
-              <Link href="/ask" className="text-sm text-blue-600 hover:underline">
-                Ask
-              </Link>
+              <div className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-500 text-white font-bold text-sm">
+                B
+              </div>
+              <h1 className="text-xl font-bold tracking-tight text-white">Board builder</h1>
+              <div className="flex items-center gap-2 ml-2">
+                <Link href="/dashboard" className="text-sm text-indigo-400 hover:underline">
+                  Dashboard
+                </Link>
+                <Link href="/ask" className="text-sm text-indigo-400 hover:underline">
+                  Ask
+                </Link>
+              </div>
             </div>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-slate-400">
               Compose up to {MAX_WIDGETS} widgets — a table pick, a SQL query, or a
               plain-English prompt — each rendered as its own chart.
             </p>
@@ -84,7 +89,7 @@ export default function BuilderPage() {
         {!board && boardId === null ? (
           <BoardWelcome />
         ) : (
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3 animate-fade-in" style={{ animationDelay: "100ms" }}>
             {slots.map((widget, ordinal) =>
               widget ? (
                 <WidgetCard
@@ -119,11 +124,15 @@ export default function BuilderPage() {
 
 function BoardWelcome() {
   return (
-    <div className="p-10 border border-dashed border-slate-300 rounded-xl bg-white text-center">
-      <h2 className="text-lg font-bold text-slate-900 mb-2">No board open</h2>
-      <p className="text-sm text-slate-600 mb-4">
-        Pick a board in the selector above, or create a new one and start
-        adding widgets.
+    <div className="p-12 border-2 border-dashed border-white/10 rounded-2xl bg-white/5 text-center animate-fade-in">
+      <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-500/20 text-indigo-400 mb-4">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+        </svg>
+      </div>
+      <h2 className="text-lg font-bold tracking-tight text-white mb-2">No board open</h2>
+      <p className="text-sm text-slate-400 mb-4 max-w-xs mx-auto">
+        Pick a board in the selector above, or create a new one and start adding widgets.
       </p>
     </div>
   );
@@ -147,7 +156,7 @@ function BoardSelect({
       <select
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value || null)}
-        className="border border-slate-300 rounded px-3 py-2 text-sm bg-white"
+        className="input-refined text-sm"
       >
         <option value="">— no board —</option>
         {boards.map((board) => (
@@ -169,7 +178,7 @@ function BoardSelect({
             onCreated(id);
           }
         }}
-        className="px-4 py-2 rounded bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+        className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-500 disabled:opacity-50 transition active:scale-95"
       >
         {loading ? "Creating…" : "+ New board"}
       </button>
@@ -182,11 +191,13 @@ function EmptySlot({ onAdd }: { onAdd: () => void }) {
     <button
       type="button"
       onClick={onAdd}
-      className="border border-dashed border-slate-300 rounded-xl bg-white/50 p-8 text-center hover:border-blue-400 hover:bg-blue-50/40 transition flex flex-col items-center justify-center min-h-48"
+      className="border-2 border-dashed border-white/10 rounded-2xl bg-white/5 p-8 text-center hover:border-indigo-500/50 hover:bg-white/10 transition flex flex-col items-center justify-center min-h-48 group"
     >
-      <span className="text-3xl text-slate-300 mb-2">+</span>
-      <span className="text-sm font-medium text-slate-600">Add widget</span>
-      <span className="text-xs text-slate-400 mt-1">Pick data, SQL, or a prompt</span>
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-dashed border-white/20 text-slate-400 group-hover:border-indigo-500 group-hover:text-indigo-400 transition mb-2">
+        <span className="text-xl">+</span>
+      </div>
+      <span className="text-sm font-medium text-slate-300">Add widget</span>
+      <span className="text-xs text-slate-500 mt-1">Pick data, SQL, or a prompt</span>
     </button>
   );
 }
@@ -206,21 +217,25 @@ function WidgetCard({
   const [removing, setRemoving] = useState(false);
 
   return (
-    <div className="border border-slate-200 rounded-xl bg-white flex flex-col min-h-64">
-      <div className="p-3 border-b border-slate-100 flex items-start justify-between gap-2">
+    <div className="border border-white/10 rounded-2xl bg-white/5 flex flex-col min-h-64 shadow-sm hover:border-indigo-500/50 hover:bg-white/10 transition">
+      <div className="p-4 border-b border-white/10 rounded-t-2xl flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-sm font-medium text-slate-900 truncate" title={widget.title}>
+          <p className="text-sm font-medium text-white truncate" title={widget.title}>
             {widget.title}
           </p>
-          <p className="text-xs text-slate-500 mt-0.5 flex gap-2">
-            <span className="px-1.5 rounded bg-slate-100">{widget.mode}</span>
-            <span className="px-1.5 rounded bg-slate-100">{widget.chartKind}</span>
+          <p className="text-xs text-slate-400 mt-1 flex gap-2">
+            <span className="px-2 py-0.5 rounded bg-white/10 text-[10px] font-medium text-slate-400">
+              {widget.mode}
+            </span>
+            <span className="px-2 py-0.5 rounded bg-white/10 text-[10px] font-medium text-slate-400">
+              {widget.chartKind}
+            </span>
             {widget.status !== "OK" && (
               <span
-                className={`px-1.5 rounded ${
+                className={`px-2 py-0.5 rounded text-[10px] font-medium ${
                   widget.status === "OK"
-                    ? "bg-green-100 text-green-700"
-                    : "bg-red-100 text-red-700"
+                    ? "bg-emerald-500/20 text-emerald-400"
+                    : "bg-red-500/20 text-red-400"
                 }`}
               >
                 {widget.status}
@@ -228,11 +243,11 @@ function WidgetCard({
             )}
           </p>
         </div>
-        <div className="flex gap-1 shrink-0">
+        <div className="flex gap-1.5 shrink-0">
           <button
             type="button"
             onClick={onEdit}
-            className="text-xs px-2 py-1 rounded border border-slate-200 text-slate-600 hover:bg-slate-50"
+            className="text-xs font-medium px-2.5 py-1.5 rounded border border-white/20 text-slate-300 hover:bg-white/10 hover:border-white/30 transition"
             title="Edit widget"
           >
             Edit
@@ -249,7 +264,7 @@ function WidgetCard({
                 setRemoving(false);
               }
             }}
-            className="text-xs px-2 py-1 rounded border border-slate-200 text-red-500 hover:bg-red-50 disabled:opacity-50"
+            className="text-xs font-medium px-2.5 py-1.5 rounded border border-white/20 text-red-400 hover:bg-red-500/10 hover:text-red-300 hover:border-red-500/50 disabled:opacity-50 transition"
             title="Remove widget"
           >
             {removing ? "…" : "Delete"}
@@ -259,18 +274,20 @@ function WidgetCard({
 
       <div className="p-4 flex-1">
         {widget.status !== "OK" ? (
-          <div className="p-3 rounded bg-red-50 text-red-700 text-xs whitespace-pre-wrap">
+          <div className="p-3 rounded-xl bg-red-500/10 text-red-400 text-xs whitespace-pre-wrap border border-red-500/20">
             {widget.status === "NEEDS_CLARIFICATION" ? "Needs clarification: " : "Failed: "}
             {widget.errorMessage ?? "unknown error"}
           </div>
         ) : widget.result ? (
-          <ResultView
-            result={widget.result}
-            defaultView="auto"
-            chartKind={widget.chartKind}
-          />
+          <div className="h-48 overflow-hidden rounded-xl border border-white/10">
+            <ResultView
+              result={widget.result}
+              defaultView="auto"
+              chartKind={widget.chartKind}
+            />
+          </div>
         ) : (
-          <p className="text-sm text-slate-500">No result snapshot.</p>
+          <p className="text-sm text-slate-400">No result snapshot.</p>
         )}
       </div>
     </div>
@@ -310,39 +327,39 @@ function WidgetEditor({
   );
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 space-y-4">
+    <div className="fixed inset-0 bg-[#0a0b12]/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fade-in">
+      <div className="bg-white/5 rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-5 border border-white/10">
         <div className="flex items-center justify-between">
-          <h3 className="font-bold text-slate-900">
+          <h3 className="font-bold tracking-tight text-white">
             {existing ? "Edit widget" : `New widget — slot ${editor.slot + 1}`}
           </h3>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl leading-none">
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none rounded-full p-1 hover:bg-white/10 transition">
             ×
           </button>
         </div>
 
         {formError && (
-          <div className="p-3 rounded bg-red-50 text-red-700 text-sm">{formError}</div>
+          <div className="p-3 rounded-xl bg-red-500/10 text-red-400 text-sm border border-red-500/20">{formError}</div>
         )}
 
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>
+          <label className="block text-sm font-medium text-slate-300 mb-1">Title</label>
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g. Top products"
-            className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+            className="w-full border border-white/20 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Data source</label>
+          <label className="block text-sm font-medium text-slate-300 mb-1">Data source</label>
           <select
             required
             value={dataSourceId}
             onChange={(e) => setDataSourceId(e.target.value)}
-            className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+            className="w-full border border-white/20 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
           >
             <option value="" disabled>
               {dsLoading ? "Loading…" : "Select a data source"}
@@ -356,7 +373,7 @@ function WidgetEditor({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Input</label>
+          <label className="block text-sm font-medium text-slate-300 mb-1">Input</label>
           <div className="grid grid-cols-3 gap-2">
             <ModeButton active={mode === "MANUAL"} label="Pick a table" onClick={() => setMode("MANUAL")} />
             <ModeButton active={mode === "SQL"} label="Write SQL" onClick={() => setMode("SQL")} />
@@ -368,7 +385,7 @@ function WidgetEditor({
                 required
                 value={tableName}
                 onChange={(e) => setTableName(e.target.value)}
-                className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                className="w-full border border-white/20 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
               >
                 <option value="" disabled>
                   Select a table
@@ -387,7 +404,7 @@ function WidgetEditor({
                 value={sqlText}
                 onChange={(e) => setSqlText(e.target.value)}
                 placeholder="SELECT * FROM users LIMIT 100"
-                className="w-full border border-slate-300 rounded px-3 py-2 text-sm font-mono"
+                className="w-full border border-white/20 rounded-xl px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
               />
             )}
             {mode === "QUESTION" && (
@@ -397,14 +414,14 @@ function WidgetEditor({
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 placeholder="e.g. Monthly revenue for the last 12 months"
-                className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                className="w-full border border-white/20 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
               />
             )}
           </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Render as</label>
+          <label className="block text-sm font-medium text-slate-300 mb-1">Render as</label>
           <div className="grid grid-cols-4 gap-2">
             {(["TABLE", "BAR", "LINE", "PIE"] as const).map((kind) => (
               <ModeButton
@@ -427,7 +444,7 @@ function WidgetEditor({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded border border-slate-300 text-slate-700 text-sm hover:bg-slate-50"
+              className="px-4 py-2 rounded-xl border border-white/20 text-slate-300 text-sm font-medium hover:bg-white/10 hover:border-white/30 transition"
             >
               Cancel
             </button>
@@ -462,7 +479,7 @@ function WidgetEditor({
                   );
                 }
               }}
-              className="px-4 py-2 rounded bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+              className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-500 hover:shadow-lg shadow-indigo-500/30 disabled:opacity-50 transition active:scale-95"
             >
               {saving ? "Running…" : existing ? "Update & run" : "Save & run"}
             </button>
@@ -486,10 +503,10 @@ function ModeButton({
     <button
       type="button"
       onClick={onClick}
-      className={`px-2 py-1.5 rounded text-xs font-medium ${
+      className={`px-3 py-1.5 rounded-xl text-xs font-medium transition ${
         active
-          ? "bg-slate-800 text-white"
-          : "border border-slate-300 text-slate-600 hover:bg-slate-50"
+          ? "bg-indigo-600 text-white shadow-sm shadow-indigo-500/30"
+          : "border border-white/20 text-slate-400 hover:bg-white/10 hover:border-white/30"
       }`}
     >
       {label}

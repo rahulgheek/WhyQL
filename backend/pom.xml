@@ -371,6 +371,23 @@
 					</execution>
 				</executions>
 			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<systemPropertyVariables>
+						<!-- Tests must not see backend/.env (loaded by the dotenv
+						     property source when it is on the classpath): it
+						     carries developer credentials and overrides
+						     (WHYQL_CLOUD_MODE, MAIL_*, OAuth client ids) that
+						     change beans the suites pin to neutral defaults.
+						     Tests provide their own secrets via
+						     @DynamicPropertySource. Runtime behavior is
+						     unchanged: .env is loaded when the app starts. -->
+						<springdotenv.enabled>false</springdotenv.enabled>
+					</systemPropertyVariables>
+				</configuration>
+			</plugin>
 		</plugins>
 	</build>
 

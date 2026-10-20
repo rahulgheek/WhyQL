@@ -59,6 +59,10 @@ class DataSourceControllerTest {
   static void testSecrets(DynamicPropertyRegistry registry) {
     registry.add("JWT_SECRET", () -> "test-secret-012345678901234567890123456789012345678901234");
     registry.add("ENCRYPTION_KEY", () -> "MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY=");
+    // Pin the SSRF posture for this suite: a developer's backend/.env sets
+    // WHYQL_CLOUD_MODE=false for local convenience, which would silently allow
+    // 127.0.0.1 and turn the block test below into a wallpaper instead.
+    registry.add("whyql.datasource.cloud-mode", () -> "true");
   }
 
   @Autowired

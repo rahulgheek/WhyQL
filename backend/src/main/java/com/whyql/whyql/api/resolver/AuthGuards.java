@@ -44,4 +44,19 @@ public final class AuthGuards {
     }
     return job;
   }
+
+  /**
+   * Same ownership contract for chat sessions: a user can only read or
+   * manage their own conversations.
+   */
+  public static com.whyql.whyql.chat.domain.ChatSession requireOwnSession(
+      com.whyql.whyql.chat.service.ChatService chatService,
+      java.util.UUID sessionId, Authentication auth) {
+    requireUser(auth);
+    try {
+      return chatService.owned(auth.getName(), sessionId);
+    } catch (IllegalArgumentException notFound) {
+      throw new NotFoundGraphQLException("Chat session not found: " + sessionId);
+    }
+  }
 }

@@ -50,6 +50,9 @@ public class Job {
   /** Router decision: DATA_QUERY / QUERY_AND_EXPLAIN / GENERAL. */
   private String route;
 
+  /** Conversation this question belongs to; null for sessionless/legacy asks. */
+  private UUID chatSessionId;
+
   private Instant createdAt = Instant.now();
 
   private Instant updatedAt = Instant.now();

@@ -40,24 +40,32 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <div className="p-8 border border-slate-200 rounded-xl bg-white w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-[#0a0b12]">
+      <div className="p-8 border border-white/10 rounded-2xl bg-white/5 shadow-sm w-full max-w-md animate-fade-in">
         {step === "login" ? (
           <>
-            <h2 className="text-xl font-bold text-slate-900 mb-6">Log in</h2>
+            <div className="mb-6">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="h-8 w-8 rounded-xl bg-indigo-500 text-white flex items-center justify-center font-bold text-sm">
+                  Q
+                </div>
+                <h2 className="text-xl font-bold tracking-tight text-white">Log in</h2>
+              </div>
+              <p className="text-sm text-slate-400">Welcome back. Sign in to your account.</p>
+            </div>
             {expiredBanner && (
-              <div className="mb-4 p-3 rounded bg-amber-50 text-amber-800 text-sm">
+              <div className="mb-4 p-3 rounded-xl bg-amber-500/10 text-amber-400 text-sm border border-amber-500/20">
                 {expiredBanner}
               </div>
             )}
             {error && (
-              <div className="mb-4 p-3 rounded bg-red-50 text-red-700 text-sm">
+              <div className="mb-4 p-3 rounded-xl bg-red-500/10 text-red-400 text-sm border border-red-500/20">
                 {error}
               </div>
             )}
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">
                   Email
                 </label>
                 <input
@@ -65,11 +73,11 @@ export default function LoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full border border-slate-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full border border-white/20 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">
                   Password
                 </label>
                 <input
@@ -77,27 +85,27 @@ export default function LoginPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full border border-slate-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full border border-white/20 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
                 />
               </div>
               <button
                 type="submit"
-                className="w-full py-2 rounded bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
+                className="w-full py-2.5 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-500 hover:shadow-lg shadow-indigo-500/30 disabled:opacity-50 transition active:scale-95"
                 disabled={!email || !password}
               >
                 Log in
               </button>
             </form>
-            <div className="my-5 flex items-center gap-3 text-xs text-slate-400">
-              <span className="h-px flex-1 bg-slate-200" />
+            <div className="my-6 flex items-center gap-3 text-xs text-slate-400">
+              <span className="h-px flex-1 bg-white/10" />
               or
-              <span className="h-px flex-1 bg-slate-200" />
+              <span className="h-px flex-1 bg-white/10" />
             </div>
             <div className="space-y-2">
               <OAuthButton provider="github" label="Continue with GitHub" />
               <OAuthButton provider="google" label="Continue with Google" />
             </div>
-            <p className="mt-4 text-sm text-center text-slate-600">
+            <p className="mt-5 text-sm text-center text-slate-400">
               Need to verify your email?{" "}
               <button
                 type="button"
@@ -109,25 +117,33 @@ export default function LoginPage() {
                   setError("");
                   setStep("verify");
                 }}
-                className="text-blue-600 hover:underline"
+                className="text-indigo-400 hover:underline font-medium"
               >
                 Enter verification code
               </button>
             </p>
-            <p className="mt-6 text-sm text-center text-slate-600">
+            <p className="mt-6 text-sm text-center text-slate-400">
               Don&apos;t have an account?{" "}
-              <Link href="/register" className="text-blue-600 hover:underline">
+              <Link href="/register" className="text-indigo-400 hover:underline font-medium">
                 Register
               </Link>
             </p>
           </>
         ) : (
           <>
-            <h2 className="text-xl font-bold text-slate-900 mb-6">
-              Verify email
-            </h2>
+            <div className="mb-6">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="h-8 w-8 rounded-xl bg-indigo-500 text-white flex items-center justify-center font-bold text-sm">
+                  Q
+                </div>
+                <h2 className="text-xl font-bold tracking-tight text-white">
+                  Verify email
+                </h2>
+              </div>
+              <p className="text-sm text-slate-400">Enter the 6-digit code sent to your inbox.</p>
+            </div>
             {error && (
-              <div className="mb-4 p-3 rounded bg-red-50 text-red-700 text-sm">
+              <div className="mb-4 p-3 rounded-xl bg-red-500/10 text-red-400 text-sm border border-red-500/20">
                 {error}
               </div>
             )}
@@ -137,11 +153,11 @@ export default function LoginPage() {
                 window.location.href = "/";
               }}
             />
-            <p className="mt-4 text-sm text-center text-slate-600">
+            <p className="mt-5 text-sm text-center text-slate-400">
               <button
                 type="button"
                 onClick={() => setStep("login")}
-                className="text-blue-600 hover:underline"
+                className="text-indigo-400 hover:underline font-medium"
               >
                 Back to login
               </button>

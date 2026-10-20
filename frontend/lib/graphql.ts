@@ -61,6 +61,16 @@ export const JOB_QUERY = gql`
         rows
         truncated
       }
+      resultSections {
+        title
+        sizeCategory
+        totalRows
+        result {
+          columns { name typeName }
+          rows
+          truncated
+        }
+      }
       errorMessage
       analysis
       clarifyingQuestions
@@ -79,12 +89,34 @@ export const JOB_UPDATES_SUBSCRIPTION = gql`
         rows
         truncated
       }
+      resultSections {
+        title
+        sizeCategory
+        totalRows
+        result {
+          columns { name typeName }
+          rows
+          truncated
+        }
+      }
       errorMessage
       analysis
       clarifyingQuestions
     }
   }
 `;
+
+/** Shape of one answer part from the backend (see GraphQL ResultSection). */
+export interface ResultSectionView {
+  title?: string | null;
+  sizeCategory: "OK" | "TOO_LARGE";
+  totalRows?: number | null;
+  result: {
+    columns: { name: string; typeName: string }[];
+    rows: unknown[];
+    truncated: boolean;
+  } | null;
+}
 
 export interface JobView {
   id: string;
@@ -95,6 +127,8 @@ export interface JobView {
     rows: unknown[];
     truncated: boolean;
   } | null;
+  /** One entry per answer part; oversized parts carry the count instead of rows. */
+  resultSections?: ResultSectionView[] | null;
   errorMessage?: string;
   analysis?: string | null;
   clarifyingQuestions?: string[] | null;
@@ -336,4 +370,137 @@ export function useRemoveBoard() {
 
 export function useRemoveBoardWidget() {
   return useMutation(REMOVE_BOARD_WIDGET_MUTATION);
+}
+
+// ─── Chat sessions (dashboard-side conversation management) ──────────────────
+
+export const CHAT_SESSIONS_QUERY = gql`
+  query ChatSessions($page: Int, $size: Int) {
+    chatSessions(page: $page, size: $size) {
+      items {
+        id
+        title
+        dataSourceId
+        messageCount
+        createdAt
+        updatedAt
+      }
+      total
+      page
+      size
+      hasNext
+    }
+  }
+`;
+
+/**
+ * Backwards paged: page 0 is the newest window, items come back ascending
+ * inside it — a chat UI prepends each older page above what it has.
+ */
+export const CHAT_MESSAGES_QUERY = gql`
+  query ChatMessages($sessionId: ID!, $page: Int, $size: Int) {
+    chatMessages(sessionId: $sessionId, page: $page, size: $size) {
+      items {
+        id
+        role
+        text
+        jobId
+        createdAt
+      }
+      total
+      page
+      size
+      hasNext
+    }
+  }
+`;
+
+export const CREATE_CHAT_SESSION_MUTATION = gql`
+  mutation CreateChatSession($title: String, $dataSourceId: ID) {
+    createChatSession(title: $title, dataSourceId: $dataSourceId) {
+      id
+      title
+      dataSourceId
+      createdAt
+    }
+  }
+`;
+
+export const RENAME_CHAT_SESSION_MUTATION = gql`
+  mutation RenameChatSession($id: ID!, $title: String!) {
+    renameChatSession(id: $id, title: $title) {
+      id
+      title
+    }
+  }
+`;
+
+export const DELETE_CHAT_SESSION_MUTATION = gql`
+  mutation DeleteChatSession($id: ID!) {
+    deleteChatSession(id: $id)
+  }
+`;
+
+export interface ChatSessionView {
+  id: string;
+  title?: string | null;
+  dataSourceId?: string | null;
+  messageCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChatSessionPageView {
+  items: ChatSessionView[];
+  total: number;
+  page: number;
+  size: number;
+  hasNext: boolean;
+}
+
+export interface ChatMessageView {
+  id: string;
+  role: "USER" | "ASSISTANT";
+  text?: string | null;
+  jobId?: string | null;
+  createdAt: string;
+}
+
+export interface ChatMessagePageView {
+  items: ChatMessageView[];
+  total: number;
+  page: number;
+  size: number;
+  hasNext: boolean;
+}
+
+export function useChatSessions(page: number, size = 10) {
+  return useQuery(CHAT_SESSIONS_QUERY, {
+    variables: { page, size },
+  });
+}
+
+export function useChatMessages(sessionId: string | null, page: number, size = 30) {
+  return useQuery(CHAT_MESSAGES_QUERY, {
+    variables: { sessionId: sessionId ?? "", page, size },
+    skip: !sessionId,
+  });
+}
+
+export function useCreateChatSession() {
+  return useMutation(CREATE_CHAT_SESSION_MUTATION, {
+    refetchQueries: [{ query: CHAT_SESSIONS_QUERY, variables: { page: 0, size: 10 } }],
+  });
+}
+
+export function useRenameChatSession() {
+  return useMutation(RENAME_CHAT_SESSION_MUTATION, {
+    refetchQueries: [{ query: CHAT_SESSIONS_QUERY, variables: { page: 0, size: 10 } }],
+  });
+}
+
+export function useDeleteChatSession() {
+  return useMutation(DELETE_CHAT_SESSION_MUTATION, {
+    refetchQueries: [{ query: CHAT_SESSIONS_QUERY, variables: { page: 0, size: 10 } }],
+  });
 }

@@ -10,7 +10,8 @@
         "jobs::domain", "jobs::events", "jobs::services",
         "pipeline::services", "datasource::domain", "datasource::services", "shared",
         "dashboard::services", "dashboard::domain",
-        "board::domain", "board::services", "query"
+        "board::domain", "board::services", "query",
+        "chat::domain", "chat::services"
     })
 package com.whyql.whyql.api;
 

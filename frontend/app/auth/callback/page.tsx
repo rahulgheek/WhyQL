@@ -48,11 +48,19 @@ export default function OAuthCallbackPage() {
 
   if (step === "error") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="p-8 border border-slate-200 rounded-xl bg-white w-full max-w-md">
-          <h2 className="text-xl font-bold text-slate-900 mb-2">Sign-in failed</h2>
-          <p className="text-sm text-slate-600 mb-6">{message}</p>
-          <Link href="/login" className="text-sm text-blue-600 hover:underline">
+      <div className="min-h-screen flex items-center justify-center bg-[#0a0b12]">
+        <div className="p-8 border border-white/10 rounded-2xl bg-white/5 shadow-sm w-full max-w-md animate-fade-in">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="h-8 w-8 rounded-xl bg-indigo-500 text-white flex items-center justify-center font-bold text-sm">
+              Q
+            </div>
+            <h2 className="text-xl font-bold tracking-tight text-white">Sign-in failed</h2>
+          </div>
+          <p className="text-sm text-slate-400 mb-6">{message}</p>
+          <Link
+            href="/login"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-500 hover:shadow-lg shadow-indigo-500/30 transition active:scale-95"
+          >
             Back to login
           </Link>
         </div>
@@ -61,8 +69,13 @@ export default function OAuthCallbackPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <p className="text-slate-600">Finishing sign-in…</p>
+    <div className="min-h-screen flex items-center justify-center bg-[#0a0b12]">
+      <div className="flex flex-col items-center gap-3">
+        <div className="h-8 w-8 rounded-xl bg-indigo-500 text-white flex items-center justify-center font-bold text-sm animate-gentle-pulse">
+          Q
+        </div>
+        <p className="text-slate-400">Finishing sign-in…</p>
+      </div>
     </div>
   );
 }

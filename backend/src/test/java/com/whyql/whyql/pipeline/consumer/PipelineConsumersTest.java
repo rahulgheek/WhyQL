@@ -17,6 +17,7 @@ import org.mockito.Mockito;
 
 import com.whyql.whyql.datasource.domain.Engine;
 import com.whyql.whyql.datasource.domain.QueryPlan;
+import com.whyql.whyql.datasource.domain.ResultEnvelope;
 import com.whyql.whyql.datasource.domain.SchemaSnapshot;
 import com.whyql.whyql.datasource.domain.TabularResult;
 import com.whyql.whyql.jobs.domain.Job;
@@ -39,6 +40,7 @@ class PipelineConsumersTest {
   private com.whyql.whyql.rag.service.SchemaDocsService schemaDocs;
   private JobEventPublisher jobEventPublisher;
   private ObjectMapper objectMapper;
+  private com.whyql.whyql.chat.service.ChatService chatService;
 
   private Job job;
 
@@ -49,6 +51,7 @@ class PipelineConsumersTest {
     schemaDocs = mock(com.whyql.whyql.rag.service.SchemaDocsService.class);
     jobEventPublisher = mock(JobEventPublisher.class);
     objectMapper = new ObjectMapper();
+    chatService = mock(com.whyql.whyql.chat.service.ChatService.class);
 
     job = new Job();
     job.setId(UUID.randomUUID());
@@ -72,6 +75,14 @@ class PipelineConsumersTest {
     return new SchemaSnapshot("demo", List.of(), Instant.now());
   }
 
+  private TabularResult rowsOf(int n, String column, String type) {
+    List<List<Object>> rows = new java.util.ArrayList<>();
+    for (int i = 1; i <= n; i++) {
+      rows.add(List.of(i));
+    }
+    return new TabularResult(List.of(new TabularResult.ResultColumn(column, type)), rows, false);
+  }
+
   @Test
   void queryRequestedConsumerGeneratesPlanAndHandsOff() {
     QueryPlan plan = new QueryPlan(
@@ -83,7 +94,7 @@ class PipelineConsumersTest {
         .thenReturn(plan);
 
     new QueryRequestedConsumer(jobService, queryService, jobEventPublisher,
-        objectMapper).onQueryRequested(payload());
+        objectMapper, chatService).onQueryRequested(payload());
 
     org.junit.jupiter.api.Assertions.assertEquals(
         JobStatus.VALIDATING, job.getStatus());
@@ -100,7 +111,7 @@ class PipelineConsumersTest {
         .thenReturn(plan);
 
     new QueryRequestedConsumer(jobService, queryService, jobEventPublisher,
-        objectMapper).onQueryRequested(payload());
+        objectMapper, chatService).onQueryRequested(payload());
 
     org.junit.jupiter.api.Assertions.assertEquals(
         JobStatus.NEEDS_CLARIFICATION, job.getStatus());
@@ -114,7 +125,7 @@ class PipelineConsumersTest {
         .thenThrow(new RuntimeException("connection refused"));
 
     new QueryRequestedConsumer(jobService, queryService, jobEventPublisher,
-        objectMapper).onQueryRequested(payload());
+        objectMapper, chatService).onQueryRequested(payload());
 
     org.junit.jupiter.api.Assertions.assertEquals(
         JobStatus.FAILED, job.getStatus());
@@ -171,6 +182,121 @@ class PipelineConsumersTest {
   }
 
   @Test
+  void queryGeneratedConsumerExecutesPrimaryThenSections() {
+    QueryPlan.PlanSection summary = new QueryPlan.PlanSection("summary", "SELECT 1");
+    QueryPlan.PlanSection trend = new QueryPlan.PlanSection("trend", "SELECT 2");
+    QueryPlan plan = new QueryPlan(
+        Engine.POSTGRES, "SELECT primary_answer", "", List.of(), List.of(),
+        List.of(summary, trend));
+    job.setQueryPlanJson(objectMapper.writeValueAsString(plan));
+
+    when(queryService.retrieveSchema(any(UUID.class), anyString())).thenReturn(snapshot());
+    when(queryService.executeQuery(any(UUID.class), anyString(), any(QueryPlan.class)))
+        .thenReturn(rowsOf(3, "n", "int4"));
+
+    new QueryGeneratedConsumer(jobService, queryService, jobEventPublisher,
+        objectMapper).onQueryGenerated(payload());
+
+    org.junit.jupiter.api.Assertions.assertEquals(
+        JobStatus.EXECUTING, job.getStatus());
+    verify(jobEventPublisher).publishQueryExecuted(job);
+    // Primary query + both sections: three executions in order.
+    var inOrder = Mockito.inOrder(queryService);
+    inOrder.verify(queryService).validateQuery(
+        Mockito.argThat(p -> "SELECT primary_answer".equals(p.queryText())),
+        any(SchemaSnapshot.class));
+    inOrder.verify(queryService).validateQuery(
+        Mockito.argThat(p -> "SELECT 1".equals(p.queryText())),
+        any(SchemaSnapshot.class));
+    inOrder.verify(queryService).validateQuery(
+        Mockito.argThat(p -> "SELECT 2".equals(p.queryText())),
+        any(SchemaSnapshot.class));
+
+    ResultEnvelope envelope = ResultEnvelope.parse(job.getResultJson(), objectMapper);
+    org.junit.jupiter.api.Assertions.assertNotNull(envelope);
+    org.junit.jupiter.api.Assertions.assertEquals(3, envelope.sections().size());
+    // Primary first and unnamed; sections keep their titles.
+    org.junit.jupiter.api.Assertions.assertNull(envelope.sections().get(0).title());
+    org.junit.jupiter.api.Assertions.assertEquals(
+        "summary", envelope.sections().get(1).title());
+    org.junit.jupiter.api.Assertions.assertEquals(
+        "trend", envelope.sections().get(2).title());
+    org.junit.jupiter.api.Assertions.assertEquals(
+        ResultEnvelope.SIZE_OK, envelope.sections().get(0).sizeCategory());
+    org.junit.jupiter.api.Assertions.assertEquals(3L, envelope.sections().get(0).totalRows());
+  }
+
+  @Test
+  void queryGeneratedConsumerDropsSectionThatRepeatsPrimary() {
+    QueryPlan plan = new QueryPlan(
+        Engine.POSTGRES, "SELECT 1", "", List.of(), List.of(),
+        List.of(new QueryPlan.PlanSection("same answer", "SELECT 1")));
+    job.setQueryPlanJson(objectMapper.writeValueAsString(plan));
+
+    when(queryService.retrieveSchema(any(UUID.class), anyString())).thenReturn(snapshot());
+    when(queryService.executeQuery(any(UUID.class), anyString(), any(QueryPlan.class)))
+        .thenReturn(rowsOf(2, "n", "int4"));
+
+    new QueryGeneratedConsumer(jobService, queryService, jobEventPublisher,
+        objectMapper).onQueryGenerated(payload());
+
+    Mockito.verify(queryService, Mockito.times(1)).executeQuery(
+        any(UUID.class), anyString(), any(QueryPlan.class));
+    ResultEnvelope envelope = ResultEnvelope.parse(job.getResultJson(), objectMapper);
+    org.junit.jupiter.api.Assertions.assertEquals(1, envelope.sections().size());
+  }
+
+  @Test
+  void queryGeneratedConsumerWithholdsOversizedSectionWithCount() {
+    QueryPlan plan = new QueryPlan(
+        Engine.POSTGRES, "SELECT * FROM big_table", "", List.of(), List.of());
+    job.setQueryPlanJson(objectMapper.writeValueAsString(plan));
+
+    when(queryService.retrieveSchema(any(UUID.class), anyString())).thenReturn(snapshot());
+    when(queryService.executeQuery(any(UUID.class), anyString(), any(QueryPlan.class)))
+        .thenReturn(rowsOf(201, "id", "int4"));
+    when(queryService.countRows(any(UUID.class), anyString(), any(QueryPlan.class)))
+        .thenReturn(5_000_000L);
+
+    new QueryGeneratedConsumer(jobService, queryService, jobEventPublisher,
+        objectMapper).onQueryGenerated(payload());
+
+    ResultEnvelope envelope = ResultEnvelope.parse(job.getResultJson(), objectMapper);
+    org.junit.jupiter.api.Assertions.assertNotNull(envelope);
+    org.junit.jupiter.api.Assertions.assertEquals(1, envelope.sections().size());
+    ResultEnvelope.Section section = envelope.sections().get(0);
+    org.junit.jupiter.api.Assertions.assertEquals(ResultEnvelope.SIZE_TOO_LARGE,
+        section.sizeCategory());
+    org.junit.jupiter.api.Assertions.assertEquals(5_000_000L, section.totalRows());
+    org.junit.jupiter.api.Assertions.assertNull(section.result());
+    verify(jobEventPublisher).publishQueryExecuted(job);
+  }
+
+  @Test
+  void queryGeneratedConsumerCountFailureStillCompletesWithoutRows() {
+    QueryPlan plan = new QueryPlan(
+        Engine.POSTGRES, "SELECT * FROM big_table", "", List.of(), List.of());
+    job.setQueryPlanJson(objectMapper.writeValueAsString(plan));
+
+    when(queryService.retrieveSchema(any(UUID.class), anyString())).thenReturn(snapshot());
+    when(queryService.executeQuery(any(UUID.class), anyString(), any(QueryPlan.class)))
+        .thenReturn(rowsOf(201, "id", "int4"));
+    when(queryService.countRows(any(UUID.class), anyString(), any(QueryPlan.class)))
+        .thenReturn(null);
+
+    new QueryGeneratedConsumer(jobService, queryService, jobEventPublisher,
+        objectMapper).onQueryGenerated(payload());
+
+    ResultEnvelope envelope = ResultEnvelope.parse(job.getResultJson(), objectMapper);
+    org.junit.jupiter.api.Assertions.assertNotNull(envelope);
+    ResultEnvelope.Section section = envelope.sections().get(0);
+    org.junit.jupiter.api.Assertions.assertEquals(ResultEnvelope.SIZE_TOO_LARGE,
+        section.sizeCategory());
+    org.junit.jupiter.api.Assertions.assertNull(section.totalRows());
+    verify(jobEventPublisher).publishQueryExecuted(job);
+  }
+
+  @Test
   void queryExecutedConsumerMarksAnalyzingAndPublishes() {
     new QueryExecutedConsumer(jobService, jobEventPublisher, objectMapper)
         .onQueryExecuted(payload());
@@ -186,7 +312,7 @@ class PipelineConsumersTest {
     job.setResultJson("[]");
 
     JobEventPublisher publisher = mock(JobEventPublisher.class);
-    new AnalysisRequestedConsumer(jobService, publisher, schemaDocs, queryService, objectMapper)
+    new AnalysisRequestedConsumer(jobService, publisher, schemaDocs, queryService, objectMapper, chatService)
         .onAnalysisRequested(payload());
 
     org.junit.jupiter.api.Assertions.assertEquals(
@@ -198,12 +324,12 @@ class PipelineConsumersTest {
   @Test
   void unparseablePayloadIsDroppedGracefully() {
     new QueryRequestedConsumer(jobService, queryService, jobEventPublisher,
-        objectMapper).onQueryRequested("not json");
+        objectMapper, chatService).onQueryRequested("not json");
     new QueryGeneratedConsumer(jobService, queryService, jobEventPublisher,
         objectMapper).onQueryGenerated("not json");
     new QueryExecutedConsumer(jobService, jobEventPublisher, objectMapper)
         .onQueryExecuted("not json");
-    new AnalysisRequestedConsumer(jobService, jobEventPublisher, schemaDocs, queryService, objectMapper)
+    new AnalysisRequestedConsumer(jobService, jobEventPublisher, schemaDocs, queryService, objectMapper, chatService)
         .onAnalysisRequested("not json");
 
     verify(jobService, never()).findById(any(UUID.class));
@@ -217,23 +343,65 @@ class PipelineConsumersTest {
         Engine.POSTGRES, "SELECT count(*) FROM customers", "", List.of(), List.of());
     job.setQueryPlanJson(objectMapper.writeValueAsString(plan));
 
-    new AnalysisRequestedConsumer(jobService, jobEventPublisher, schemaDocs, queryService, objectMapper)
+    new AnalysisRequestedConsumer(jobService, jobEventPublisher, schemaDocs, queryService, objectMapper, chatService)
         .onAnalysisRequested(payload());
 
     verify(schemaDocs).memorize(job.getDataSourceId(), job.getQuestion(), plan.queryText());
   }
 
   @Test
-  void analysisRequestedConsumerSkipsMemoryWithoutPlanSql() {
-    job.setStatus(JobStatus.ANALYZING);
+  void analysisRequestedConsumerSkipsMemoryWithoutPlanSql() {    job.setStatus(JobStatus.ANALYZING);
     job.setResultJson("[]");
     // No queryPlanJson set → nothing memorized, job still completes.
 
-    new AnalysisRequestedConsumer(jobService, jobEventPublisher, schemaDocs, queryService, objectMapper)
+    new AnalysisRequestedConsumer(jobService, jobEventPublisher, schemaDocs, queryService, objectMapper, chatService)
         .onAnalysisRequested(payload());
 
     org.junit.jupiter.api.Assertions.assertEquals(
         JobStatus.COMPLETED, job.getStatus());
     verify(schemaDocs, never()).memorize(any(UUID.class), anyString(), anyString());
+  }
+
+  @Test
+  void pipelineRecordsUserAndAssistantMessagesForChatSessionJobs() {
+    java.util.UUID sessionId = UUID.randomUUID();
+    job.setChatSessionId(sessionId);
+
+    // Stage 1 succeeds cleanly (no completions) so exactly one user row lands.
+    QueryPlan plan = new QueryPlan(
+        Engine.POSTGRES, "SELECT name FROM customers LIMIT 5", "", List.of(), List.of());
+    when(queryService.retrieveSchema(any(UUID.class), anyString())).thenReturn(snapshot());
+    when(queryService.generateQuery(any(UUID.class), anyString(), any(SchemaSnapshot.class), anyString()))
+        .thenReturn(plan);
+    new QueryRequestedConsumer(jobService, queryService, jobEventPublisher,
+        objectMapper, chatService).onQueryRequested(payload());
+    verify(chatService).recordUserMessage(sessionId, "user-1", "top 5 customers",
+        job.getId());
+    verify(chatService, never()).recordAssistantMessage(
+        org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+        org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+
+    // Stage 4 records the assistant answer once the job completed.
+    job.setStatus(JobStatus.ANALYZING);
+    job.setResultJson("[]");
+    new AnalysisRequestedConsumer(jobService, jobEventPublisher, schemaDocs,
+        queryService, objectMapper, chatService).onAnalysisRequested(payload());
+    verify(chatService).recordAssistantMessage(
+        org.mockito.ArgumentMatchers.eq(sessionId),
+        org.mockito.ArgumentMatchers.eq("user-1"),
+        org.mockito.ArgumentMatchers.eq((String) null),
+        org.mockito.ArgumentMatchers.eq(job.getId()));
+  }
+
+  @Test
+  void pipelineNeverTouchesChatForSessionlessJobs() {
+    // chatSessionId stays null → no chat call may happen at all.
+    new QueryRequestedConsumer(jobService, queryService, jobEventPublisher,
+        objectMapper, chatService).onQueryRequested(payload());
+
+    verify(chatService, never()).recordUserMessage(
+        any(), any(), any(), any());
+    verify(chatService, never()).recordAssistantMessage(
+        any(), any(), any(), any());
   }
 }

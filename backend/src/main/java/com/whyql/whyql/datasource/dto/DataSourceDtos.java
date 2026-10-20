@@ -34,4 +34,16 @@ public final class DataSourceDtos {
       List<String> warnings) {}
 
   public record TestConnectionResponse(boolean ok, List<String> warnings) {}
+
+  /** Rotation/edit of stored credentials; null fields keep the stored value.
+   * The caller re-proves identity with their account password (same gate as reveal). */
+  public record UpdateCredentialsRequest(String jdbcUrl, String username, String password,
+      @NotBlank String accountPassword) {}
+
+  /** Reveal gate: requires the caller's WhyQL account password. */
+  public record RevealRequest(@NotBlank String accountPassword) {}
+
+  /** Plaintext credentials — only ever returned by the gated reveal. */
+  public record RevealedCredentialsResponse(
+      UUID id, String jdbcUrl, String username, String password) {}
 }

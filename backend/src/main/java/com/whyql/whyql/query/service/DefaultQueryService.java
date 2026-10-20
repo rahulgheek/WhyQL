@@ -48,6 +48,10 @@ public class DefaultQueryService implements QueryService {
 
   private static final Logger log = LoggerFactory.getLogger(DefaultQueryService.class);
   private static final int MAX_SELF_CORRECTION_ATTEMPTS = 3;
+  /** Hard cap on optional extra result views per question (see QueryPlan.sections). */
+  private static final int MAX_SECTIONS = 3;
+  /** The count probe is a single scalar; generous enough for slow warehouses. */
+  private static final int COUNT_TIMEOUT_SECONDS = 15;
 
   private final ChatClient chatClient;
   private final ObjectMapper objectMapper;
@@ -225,13 +229,79 @@ public class DefaultQueryService implements QueryService {
     List<String> clarifyingQuestions = (List<String>) parsed.getOrDefault(
         "clarifyingQuestions", List.of());
     String explanation = (String) parsed.getOrDefault("explanation", "");
+    List<QueryPlan.PlanSection> sections = parseSections(parsed.get("sections"));
+
+    // Contract: queryText is the primary answer, never empty. A model that
+    // puts every query in sections and leaves the primary blank gets its
+    // first section promoted — the question still gets its answers.
+    if (queryText == null || queryText.isBlank()) {
+      if (!sections.isEmpty()) {
+        QueryPlan.PlanSection first = sections.get(0);
+        queryText = first.queryText();
+        sections = sections.subList(1, sections.size());
+      }
+    }
 
     return new QueryPlan(
         engine,
         queryText,
         explanation,
         assumptions,
-        clarifyingQuestions);
+        clarifyingQuestions,
+        sections);
+  }
+
+  /**
+   * Reads the LLM's optional extra views. Malformed entries are dropped rather
+   * than rejecting the whole plan; a shape that never parses yields none and
+   * the primary query answers alone.
+   */
+  @SuppressWarnings("unchecked")
+  private static List<QueryPlan.PlanSection> parseSections(Object raw) {
+    if (!(raw instanceof List<?> list)) {
+      return List.of();
+    }
+    List<QueryPlan.PlanSection> sections = new java.util.ArrayList<>();
+    for (Object item : list) {
+      if (!(item instanceof Map<?, ?> map)) {
+        continue;
+      }
+      Object title = map.get("title");
+      Object sectionQuery = map.get("queryText");
+      if (title instanceof String t && sectionQuery instanceof String q
+          && !t.isBlank() && !q.isBlank()) {
+        sections.add(new QueryPlan.PlanSection(t, q));
+      }
+    }
+    // Hard cap: extra views beyond three stop being an "answer" and become a dashboard.
+    return sections.size() > MAX_SECTIONS ? sections.subList(0, MAX_SECTIONS) : sections;
+  }
+
+  @Override
+  public Long countRows(UUID dataSourceId, String ownerUserId, QueryPlan plan) {
+    try {
+      String probeSql = "SELECT COUNT(*) AS total_rows FROM ( " + plan.queryText()
+          + " ) whyql_count_probe";
+      QueryPlan probe = new QueryPlan(
+          plan.engine(), probeSql, plan.explanation(), plan.assumptions(),
+          plan.clarifyingQuestions(), List.of());
+      TabularResult result = queryExecutor.execute(
+          dataSourceId, ownerUserId, probe,
+          new ExecutionLimits(COUNT_TIMEOUT_SECONDS, 2), VisibilityRules.none());
+      if (result.rows() == null || result.rows().isEmpty()) {
+        return null;
+      }
+      Object cell = result.rows().get(0).get(0);
+      if (cell instanceof Number number) {
+        return number.longValue();
+      }
+      return Long.parseLong(String.valueOf(cell));
+    } catch (Exception e) {
+      // The probe is never load-bearing: an unreadable count means callers
+      // report ">N rows" instead of the exact figure.
+      log.debug("Count probe failed for data source {}: {}", dataSourceId, e.getMessage());
+      return null;
+    }
   }
 
   @Override
@@ -314,7 +384,40 @@ public class DefaultQueryService implements QueryService {
           List.of(new TabularResult.ResultColumn("schema_name", "VARCHAR")),
           schemas.stream().map(s -> List.of((Object) s)).toList(),
           false);
+      case FOREIGN_KEYS -> fkBuckets(sorted);
     });
+  }
+
+  /**
+   * Foreign-key inventory from the snapshot: one row for tables that have
+   * foreign keys and one for those that don't, each with its count and the
+   * table names — so a "how many" question and a "which tables" question are
+   * both answered by the same result. Tables with unreadable FK metadata count
+   * as "none" (null fks list == nothing asserted).
+   */
+  private static TabularResult fkBuckets(List<SchemaSnapshot.SchemaTable> sorted) {
+    List<SchemaSnapshot.SchemaTable> withFk = new java.util.ArrayList<>();
+    List<SchemaSnapshot.SchemaTable> withoutFk = new java.util.ArrayList<>();
+    for (SchemaSnapshot.SchemaTable t : sorted) {
+      if (t.foreignKeys() != null && !t.foreignKeys().isEmpty()) {
+        withFk.add(t);
+      } else {
+        withoutFk.add(t);
+      }
+    }
+    return new TabularResult(
+        List.of(new TabularResult.ResultColumn("fkey_status", "VARCHAR"),
+            new TabularResult.ResultColumn("table_count", "BIGINT"),
+            new TabularResult.ResultColumn("table_names", "VARCHAR")),
+        List.of(
+            List.of("HAS_FOREIGN_KEYS", (Object) withFk.size(), names(withFk)),
+            List.of("NO_FOREIGN_KEYS", (Object) withoutFk.size(), names(withoutFk))),
+        false);
+  }
+
+  private static String names(List<SchemaSnapshot.SchemaTable> tables) {
+    return tables.stream().map(SchemaSnapshot.SchemaTable::name)
+        .reduce((a, b) -> a + ", " + b).orElse("");
   }
 
   /**

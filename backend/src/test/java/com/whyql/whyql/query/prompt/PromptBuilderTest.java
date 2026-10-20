@@ -34,6 +34,22 @@ class PromptBuilderTest {
   }
 
   @Test
+  void systemPromptDescribesSectionsContract() {
+    PromptBuilder.PromptPair pair = builder.build(
+        SNAPSHOT, List.of(), "PostgreSQL", List.of(), "summary and monthly trend",
+        List.of(), List.of());
+
+    // The schema drives multi-view output: the sections contract must be in
+    // the system prompt, capped, standalone, and optional.
+    assertThat(pair.systemPrompt()).contains("sections");
+    assertThat(pair.systemPrompt()).contains("at most 3 sections");
+    assertThat(pair.systemPrompt()).contains("standalone SELECT");
+    assertThat(pair.systemPrompt()).contains("leave sections empty");
+    // JSON contract advertises the key so the model can emit it consistently.
+    assertThat(pair.systemPrompt()).contains("sections}");
+  }
+
+  @Test
   void relevantContextSectionOmittedWhenEmpty() {
     PromptBuilder.PromptPair pair = builder.build(
         SNAPSHOT, List.of(), "PostgreSQL", List.of(),  "list customers", List.of(), List.of());

@@ -32,19 +32,127 @@ public class DataSourceService {
   private final DataSourceAdapter adapter;
   private final javax.sql.DataSource appDataSource;
   private final ApplicationEventPublisher events;
+  private final AccountPasswordValidator accountPasswordValidator;
+  private final RevealRateLimiter revealRateLimiter;
 
   public DataSourceService(DataSourceRepository repository, CredentialCrypto crypto,
       SsrfGuard ssrfGuard, DataSourceAdapter adapter, javax.sql.DataSource appDataSource,
-      ApplicationEventPublisher events) {
+      ApplicationEventPublisher events, AccountPasswordValidator accountPasswordValidator,
+      RevealRateLimiter revealRateLimiter) {
     this.repository = repository;
     this.crypto = crypto;
     this.ssrfGuard = ssrfGuard;
     this.adapter = adapter;
     this.appDataSource = appDataSource;
     this.events = events;
+    this.accountPasswordValidator = accountPasswordValidator;
+    this.revealRateLimiter = revealRateLimiter;
   }
 
   public record AddResult(DataSourceView view, List<String> warnings) {}
+
+  /** Decrypted credentials, returned ONLY through the account-password-gated reveal. */
+  public record RevealedCredentials(UUID id, String jdbcUrl, String username,
+      String password) {}
+
+  /**
+   * Rotates/edits stored connection credentials behind the same account-password
+   * gate as reveal. The merged connection is live-tested before anything is
+   * persisted — a wrong save must not leave the source unusable. Sandboxes hold
+   * no editable credentials.
+   */
+  @Transactional
+  public AddResult updateCredentials(UUID id, String ownerUserId, String jdbcUrl,
+      String username, String password, String accountPassword) {
+    // Reveal and update share one rate-limit window: either flow is a
+    // credential-security operation.
+    if (!revealRateLimiter.allowed(ownerUserId)) {
+      throw new DataSourceException(DataSourceErrorCode.REVEAL_RATE_LIMITED,
+          "too many credential operations; try again in a few minutes");
+    }
+    if (!accountPasswordValidator.matches(ownerUserId, accountPassword)) {
+      throw new DataSourceException(DataSourceErrorCode.WRONG_ACCOUNT_PASSWORD,
+          "account password is incorrect");
+    }
+
+    DataSource record = requireOwned(id, ownerUserId);
+    if (record.getSandboxSchema() != null) {
+      throw new DataSourceException(DataSourceErrorCode.SANDBOX_UNSUPPORTED,
+          "sandbox sources have no editable credentials");
+    }
+
+    Engine engine = record.getEngine();
+    String url = jdbcUrl;
+    if (url != null) {
+      url = url.trim();
+      if (url.isBlank()) {
+        throw new DataSourceException(DataSourceErrorCode.INVALID_URL,
+            "JDBC URL cannot be blank");
+      }
+      ssrfGuard.check(url);
+    } else {
+      url = jdbcUrlOf(record);
+    }
+    if (url == null || url.isBlank()) {
+      throw new DataSourceException(DataSourceErrorCode.INVALID_URL,
+          "JDBC URL is required");
+    }
+    String user = username != null && !username.isBlank() ? username : usernameOf(record);
+    String pass = password != null && !password.isBlank() ? password : passwordOf(record);
+
+    // Merged connection must actually work before we overwrite the vault.
+    testLiveConnection(engine, url, user, pass);
+
+    List<String> warnings = new ArrayList<>();
+    if (SsrfGuard.looksPrivileged(user)) {
+      warnings.add("The username '" + user + "' looks like a superuser account. "
+          + "Prefer a read-only database user with access to only the schemas you want to query.");
+    }
+
+    if (jdbcUrl != null) {
+      record.setJdbcUrlEnc(crypto.encrypt(url));
+    }
+    if (username != null && !username.isBlank()) {
+      record.setUsernameEnc(crypto.encrypt(user));
+    }
+    if (password != null && !password.isBlank()) {
+      record.setPasswordEnc(crypto.encrypt(pass));
+    }
+    repository.save(record);
+    return new AddResult(toView(record), warnings);
+  }
+
+  /**
+   * Account-password-gated credential reveal, rate limited per user. Returns
+   * plaintext to the caller for exactly this flow (rotation/copying); other
+   * paths must never reach this code.
+   */
+  @Transactional(readOnly = true)
+  public RevealedCredentials revealedCredentials(UUID id, String ownerUserId,
+      String accountPassword) {
+    if (!revealRateLimiter.allowed(ownerUserId)) {
+      throw new DataSourceException(DataSourceErrorCode.REVEAL_RATE_LIMITED,
+          "too many reveal attempts; try again in a few minutes");
+    }
+    if (!accountPasswordValidator.hasPassword(ownerUserId)) {
+      throw new DataSourceException(DataSourceErrorCode.NO_ACCOUNT_PASSWORD,
+          "your account signs in via Google/GitHub and has no local password; "
+              + "set one from the dashboard (Connections → Reveal offers the one-time "
+              + "email flow) and try again");
+    }
+    if (!accountPasswordValidator.matches(ownerUserId, accountPassword)) {
+      throw new DataSourceException(DataSourceErrorCode.WRONG_ACCOUNT_PASSWORD,
+          "account password is incorrect");
+    }
+    DataSource record = requireOwned(id, ownerUserId);
+    if (record.getSandboxSchema() != null) {
+      throw new DataSourceException(DataSourceErrorCode.SANDBOX_UNSUPPORTED,
+          "sandbox sources hold no stored credentials");
+    }
+    return new RevealedCredentials(record.getId(), jdbcUrlOf(record),
+        usernameOf(record), passwordOf(record));
+  }
+
 
   /** Add a URL data source after testing the live connection. */
   @Transactional

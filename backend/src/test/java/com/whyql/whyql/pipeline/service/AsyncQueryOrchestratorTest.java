@@ -38,23 +38,23 @@ class AsyncQueryOrchestratorTest {
     queued.setDataSourceId(UUID.randomUUID());
     queued.setQuestion("revenue by month");
     queued.setStatus(JobStatus.QUEUED);
-    when(jobService.createJob(any(UUID.class), anyString(), anyString()))
+    when(jobService.createJob(any(UUID.class), anyString(), anyString(), any()))
         .thenReturn(queued);
   }
 
   @Test
   void startQuestionCreatesQueuedJobAndPublishes() {
     UUID dataSourceId = UUID.randomUUID();
-    Job job = orchestrator.startQuestion(dataSourceId, "user-1", "revenue by month");
+    Job job = orchestrator.startQuestion(dataSourceId, "user-1", "revenue by month", null);
 
     org.junit.jupiter.api.Assertions.assertEquals(JobStatus.QUEUED, job.getStatus());
-    verify(jobService).createJob(dataSourceId, "user-1", "revenue by month");
+    verify(jobService).createJob(dataSourceId, "user-1", "revenue by month", null);
     verify(jobEventPublisher).publishQueryRequested(job);
   }
 
   @Test
   void startQuestionHandsTheCreatedJobToThePublisher() {
-    Job job = orchestrator.startQuestion(UUID.randomUUID(), "user-2", "q");
+    Job job = orchestrator.startQuestion(UUID.randomUUID(), "user-2", "q", null);
 
     verify(jobEventPublisher).publishQueryRequested(job);
   }
